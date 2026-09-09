@@ -1,0 +1,17 @@
+{
+  "id": "/management/",
+  "name": "성과관리 권한형",
+  "short_name": "성과관리 권한형",
+  "description": "역할별 권한을 적용한 업적평가·역량평가·개인면담 관리 도구",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#EB6100",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

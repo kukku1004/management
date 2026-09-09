@@ -4,7 +4,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { formatEvaluationPeriod, getPeriodOptions } from '../utils/workspace'
 import Badge from './Badge'
 import ConfirmDialog from './ConfirmDialog'
-import { useUserRole } from '../hooks/useUserRole'
+import { useAuth } from '../state/AuthContext'
 
 const PERIOD_LABELS: Record<EvaluationPeriodType, string> = {
   half: '반기',
@@ -54,7 +54,8 @@ function ProjectCard({ project, onOpen, onEdit, onDelete }: { project: Evaluatio
 
 export default function WorkspaceStart() {
   const { workspace, connected, configured, account, rememberedAccount, connect, switchAccount, logout, createTeam, updateTeam, deleteTeam, createProject, selectProject, updateProjectPeriod, deleteProject } = useWorkspace()
-  const role = useUserRole(account?.email)
+  const { profile } = useAuth()
+  const role = profile?.role ?? 'member'
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [teamName, setTeamName] = useState('')

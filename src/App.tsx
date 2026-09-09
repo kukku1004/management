@@ -11,11 +11,16 @@ import GoogleDriveDialog from './components/GoogleDriveDialog'
 import ProjectSetupStart from './components/ProjectSetupStart'
 import { evaluationPeriodFolderName, formatEvaluationPeriod } from './utils/workspace'
 import { CriteriaWorkspaceProvider } from './components/CriteriaWorkspaceLayout'
-import AccessManagement from './components/AccessManagement'
+import AccessManagement from './components/FirebaseAccessManagement'
 import { canAccessTab } from './utils/access'
-import { useUserRole } from './hooks/useUserRole'
+import { useAuth } from './state/AuthContext'
+import LoginScreen from './components/LoginScreen'
 
 export default function App() {
+  const { user, profile, loading, configured } = useAuth()
+  if (loading) return <div className="flex min-h-screen items-center justify-center bg-gray-50"><span className="h-7 w-7 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" /></div>
+  if (!configured) return <div className="flex min-h-screen items-center justify-center text-sm text-red-700">Firebase 설정을 확인하세요.</div>
+  if (!user || !profile) return <LoginScreen />
   return <WorkspaceProvider><WorkspaceRouter /></WorkspaceProvider>
 }
 
@@ -37,8 +42,9 @@ function WorkspaceRouter() {
 
 function ProjectApp() {
   const { state, dispatch } = useAppState()
-  const { workspace, activeProject, activeTeam, account, resetWorkspace } = useWorkspace()
-  const role = useUserRole(account?.email)
+  const { workspace, activeProject, activeTeam, resetWorkspace } = useWorkspace()
+  const { profile } = useAuth()
+  const role = profile?.role ?? 'member'
   const [activeTab, setActiveTab] = useState<TabKey>('tasks')
   const [dataManagementOpen, setDataManagementOpen] = useState(false)
   const [quickStartOpen, setQuickStartOpen] = useState(() => state.tasks.length === 0 && state.members.length === 0)

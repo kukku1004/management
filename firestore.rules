@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function email() { return request.auth.token.email.lower(); }
+    function profile() { return get(/databases/$(database)/documents/users/$(email())).data; }
+    function isAdmin() { return signedIn() && profile().role == 'admin'; }
+    match /invites/{invitedEmail} {
+      allow read: if signedIn() && (isAdmin() || invitedEmail == email());
+      allow write: if isAdmin();
+    }
+    match /users/{userEmail} {
+      allow read: if signedIn() && (isAdmin() || userEmail == email());
+      allow create: if signedIn() && userEmail == email() && (
+        (email() == 'jjy.osstem@gmail.com' && request.resource.data.role == 'admin') ||
+        (exists(/databases/$(database)/documents/invites/$(email())) && request.resource.data.role == get(/databases/$(database)/documents/invites/$(email())).data.role)
+      );
+      allow update: if isAdmin() || (signedIn() && userEmail == email() && request.resource.data.role == resource.data.role && request.resource.data.teamIds == resource.data.teamIds && request.resource.data.canViewOtherTeams == resource.data.canViewOtherTeams);
+      allow delete: if isAdmin();
+    }
+    match /teams/{teamId} {
+      allow read: if signedIn() && (isAdmin() || teamId in profile().teamIds || profile().canViewOtherTeams == true);
+      allow write: if isAdmin() || (profile().role == 'leader' && teamId in profile().teamIds);
+      match /{document=**} {
+        allow read: if signedIn() && (isAdmin() || teamId in profile().teamIds || profile().canViewOtherTeams == true);
+        allow write: if isAdmin() || (profile().role == 'leader' && teamId in profile().teamIds);
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

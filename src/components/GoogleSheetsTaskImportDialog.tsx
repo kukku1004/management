@@ -11,7 +11,12 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose 
   async function runImport() {
     setBusy(true); setError('')
     try { onImport(await importTasksFromGoogleSheet(url, tasks)); onClose() }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Google Sheets 데이터를 가져오지 못했습니다.') }
+    catch (reason) {
+      const message = reason instanceof Error ? reason.message : ''
+      setError(/not found|404|entity/i.test(message)
+        ? '현재 로그인한 Google 계정이 시트를 찾지 못했습니다. 로그아웃 후 다시 연결하고, 해당 계정에 시트가 공유되었는지 확인해 주세요.'
+        : message || 'Google Sheets 데이터를 가져오지 못했습니다.')
+    }
     finally { setBusy(false) }
   }
   return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label="Google Sheets 과제 가져오기">

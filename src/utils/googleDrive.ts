@@ -15,7 +15,8 @@ const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const APP_ID = 'performance-management-access-v1'
-const GOOGLE_SESSION_KEY = 'performance-management-access-v1-google-session'
+// OAuth 범위가 바뀌면 이 버전을 올려 기존 토큰을 재사용하지 않는다.
+const GOOGLE_SESSION_KEY = 'performance-management-access-v2-google-session'
 const GOOGLE_CONNECTION_HINT_KEY = 'performance-management-access-v1-google-connected'
 const GOOGLE_ACCOUNT_KEY = 'performance-management-access-v1-google-account'
 

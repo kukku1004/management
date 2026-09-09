@@ -5,6 +5,9 @@ service cloud.firestore {
     function email() { return request.auth.token.email.lower(); }
     function profile() { return get(/databases/$(database)/documents/users/$(email())).data; }
     function isAdmin() { return signedIn() && profile().role == 'admin'; }
+    function isTeamLeader(teamId) { return signedIn() && profile().role == 'leader' && teamId in profile().teamIds; }
+    function canSeeTeam(teamId) { return isAdmin() || isTeamLeader(teamId) || (signedIn() && profile().role == 'leader' && profile().canViewOtherTeams == true); }
+    function isSelf(memberEmail) { return signedIn() && memberEmail == email(); }
     match /invites/{invitedEmail} {
       allow read: if signedIn() && (isAdmin() || invitedEmail == email());
       allow write: if isAdmin();
@@ -19,11 +22,36 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /teams/{teamId} {
-      allow read: if signedIn() && (isAdmin() || teamId in profile().teamIds || profile().canViewOtherTeams == true);
-      allow write: if isAdmin() || (profile().role == 'leader' && teamId in profile().teamIds);
+      allow read, write: if canSeeTeam(teamId);
+
+      match /members/{memberEmail} {
+        allow read: if canSeeTeam(teamId) || isSelf(memberEmail);
+        allow write: if canSeeTeam(teamId);
+      }
+      match /tasks/{taskId} {
+        allow read: if canSeeTeam(teamId) || (signedIn() && (resource.data.ownerEmail == email() || email() in resource.data.assigneeEmails));
+        allow create: if canSeeTeam(teamId) || (signedIn() && request.resource.data.ownerEmail == email());
+        allow update, delete: if canSeeTeam(teamId) || (signedIn() && resource.data.ownerEmail == email() && request.resource.data.ownerEmail == email());
+      }
+      match /peerReviews/{reviewId} {
+        allow read: if canSeeTeam(teamId) || (signedIn() && resource.data.reviewerEmail == email());
+        allow create: if signedIn() && request.resource.data.reviewerEmail == email();
+        allow update, delete: if canSeeTeam(teamId) || (signedIn() && resource.data.reviewerEmail == email() && request.resource.data.reviewerEmail == email());
+      }
+      match /results/{memberEmail} {
+        allow read: if canSeeTeam(teamId) || isSelf(memberEmail);
+        allow write: if canSeeTeam(teamId);
+      }
+      match /growth/{memberEmail} {
+        allow read: if canSeeTeam(teamId) || isSelf(memberEmail);
+        allow write: if canSeeTeam(teamId);
+      }
+      match /meetingNotes/{memberEmail} {
+        allow read: if canSeeTeam(teamId) || isSelf(memberEmail);
+        allow write: if canSeeTeam(teamId);
+      }
       match /{document=**} {
-        allow read: if signedIn() && (isAdmin() || teamId in profile().teamIds || profile().canViewOtherTeams == true);
-        allow write: if isAdmin() || (profile().role == 'leader' && teamId in profile().teamIds);
+        allow read, write: if false;
       }
     }
     match /{document=**} { allow read, write: if false; }

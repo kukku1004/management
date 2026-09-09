@@ -10,6 +10,8 @@ import FileDropZone from './FileDropZone'
 import TitleHelp from './TitleHelp'
 import { downloadTaskTemplate, parseTaskWorkbook, type TaskImportResult } from '../utils/excel'
 import CriteriaWorkspaceLayout from './CriteriaWorkspaceLayout'
+import GoogleSheetsTaskImportDialog from './GoogleSheetsTaskImportDialog'
+import type { GoogleSheetTaskImport } from '../utils/googleSheetsTasks'
 
 interface TaskForm {
   name: string
@@ -35,6 +37,8 @@ export default function TaskManagement() {
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set())
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
+  const [sheetsFeedback, setSheetsFeedback] = useState<GoogleSheetTaskImport | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hasTasks = state.tasks.length > 0
 
@@ -109,12 +113,19 @@ export default function TaskManagement() {
     await importTaskFile(file)
   }
 
+  function handleSheetsImport(result: GoogleSheetTaskImport) {
+    dispatch({ type: 'IMPORT_TASKS', payload: result.tasks })
+    setSheetsFeedback(result)
+    setRecentlyAddedIds(new Set(result.tasks.slice(-result.addedCount).map((task) => task.id)))
+    setSelectedTaskIds(new Set())
+  }
+
   return (
     <CriteriaWorkspaceLayout>
     <div className="ui-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5"><h3 className="text-lg font-semibold text-black">과제</h3><TitleHelp label="과제를 추가하거나 삭제하면 평가 매트릭스와 리포트에 즉시 반영됩니다." /></div>
-        <div className="flex flex-wrap items-center gap-2"><button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>
+        <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-secondary">Google Sheets 가져오기</button><button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>
       </div>
       {(!hasTasks || uploadOpen) && <FileDropZone
         title={hasTasks ? '과제 Excel 파일을 여기에 드래그' : '등록된 과제가 없습니다.'}
@@ -135,16 +146,20 @@ export default function TaskManagement() {
           }}
         />
       )}
+      {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Google Sheets 과제 {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신했습니다.{sheetsFeedback.reviewCount > 0 && ` 날짜 확인 필요 ${sheetsFeedback.reviewCount}건`}</div>}
 
       {hasTasks ? (
       <div>
       {selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><p className="text-sm font-medium text-orange-800">과제 {selectedTaskIds.size}개 선택됨</p><button type="button" onClick={() => setBulkDeleteOpen(true)} className="ui-button ui-button-danger ui-button-sm">선택 과제 삭제</button></div>}
       <div className="ui-table-wrap">
-        <table className="ui-table min-w-[820px]">
+        <table className="ui-table min-w-[1180px]">
           <thead>
             <tr>
               <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="과제 전체 선택" checked={selectedTaskIds.size === state.tasks.length} onChange={toggleAllTasks} /></th>
               <th className="px-4 py-3 font-semibold">과제명</th>
+              <th className="px-4 py-3 font-semibold">분류</th>
+              <th className="px-4 py-3 font-semibold">담당자</th>
+              <th className="px-4 py-3 font-semibold">기간</th>
               <th className="px-4 py-3 font-semibold">과제등급</th>
               <th className="px-4 py-3 font-semibold">성과등급</th>
               <th className="px-4 py-3 font-semibold">업무량</th>
@@ -158,6 +173,9 @@ export default function TaskManagement() {
               <tr key={task.id} className="border-t border-gray-200 bg-orange-50/30 text-black">
                 <td className="px-3 py-2 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>
                 <td className="px-3 py-2"><input value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} className="ui-field ui-field-sm" />{editFormError && <p className="mt-1 text-xs text-danger">{editFormError}</p>}</td>
+                <td className="px-3 py-2 text-gray-600">{task.classification ?? '-'}</td>
+                <td className="px-3 py-2 text-gray-600">{task.assignees?.join(', ') || '-'}</td>
+                <td className="px-3 py-2 text-gray-600">{task.startDate || '-'} ~ {task.endDate || '-'}</td>
                 <td className="px-3 py-2"><select value={editForm.importance} disabled={state.criteria.taskGradeWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, importance: event.target.value as Importance }))} className="ui-field ui-field-sm disabled:bg-gray-100">{IMPORTANCE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
                 <td className="px-3 py-2"><select value={editForm.performanceGrade} disabled={state.criteria.performanceGradeWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field ui-field-sm disabled:bg-gray-100">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
                 <td className="px-3 py-2"><select value={editForm.workload} disabled={state.criteria.workloadWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, workload: event.target.value as Workload }))} className="ui-field ui-field-sm disabled:bg-gray-100">{WORKLOAD_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
@@ -176,6 +194,9 @@ export default function TaskManagement() {
                     )}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-gray-600">{task.classification ?? '-'}</td>
+                <td className="px-4 py-3 text-gray-600">{task.assignees?.join(', ') || '-'}</td>
+                <td className="px-4 py-3 text-gray-600"><span className="whitespace-nowrap">{task.startDate || '-'} ~ {task.endDate || '-'}</span>{task.dateNeedsReview && <span className="ml-2"><Badge tone="accent">확인 필요</Badge></span>}</td>
                 <td className={`px-4 py-3 ${state.criteria.taskGradeWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.taskGradeWeight === 0 ? '미사용' : task.importance}</td>
                 <td className={`px-4 py-3 ${state.criteria.performanceGradeWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.performanceGradeWeight === 0 ? '미사용' : task.performanceGrade}</td>
                 <td className={`px-4 py-3 ${state.criteria.workloadWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.workloadWeight === 0 ? '미사용' : task.workload}</td>
@@ -225,6 +246,7 @@ export default function TaskManagement() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeletingTask(null)}
       />
+      {sheetsImportOpen && <GoogleSheetsTaskImportDialog tasks={state.tasks} onImport={handleSheetsImport} onClose={() => setSheetsImportOpen(false)} />}
       <ConfirmDialog
         open={bulkDeleteOpen}
         title="선택 과제 삭제"

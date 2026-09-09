@@ -4,7 +4,7 @@ import { useWorkspace } from '../state/WorkspaceContext'
 import { formatEvaluationPeriod, getPeriodOptions } from '../utils/workspace'
 import Badge from './Badge'
 import ConfirmDialog from './ConfirmDialog'
-import { isAdminEmail } from '../utils/admin'
+import { useUserRole } from '../hooks/useUserRole'
 
 const PERIOD_LABELS: Record<EvaluationPeriodType, string> = {
   half: '반기',
@@ -54,6 +54,7 @@ function ProjectCard({ project, onOpen, onEdit, onDelete }: { project: Evaluatio
 
 export default function WorkspaceStart() {
   const { workspace, connected, configured, account, rememberedAccount, connect, switchAccount, logout, createTeam, updateTeam, deleteTeam, createProject, selectProject, updateProjectPeriod, deleteProject } = useWorkspace()
+  const role = useUserRole(account?.email)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [teamName, setTeamName] = useState('')
@@ -240,7 +241,7 @@ export default function WorkspaceStart() {
     <div className="min-h-screen bg-gray-50">
       <header className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 py-4 lg:px-10 xl:px-12">
-          <div><h1 className="text-xl font-semibold tracking-tight text-gray-950">성과·성장관리</h1><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500"><Badge tone="success">Google Drive 연결됨</Badge><span>{account?.email || '개인 Google 계정'}</span>{isAdminEmail(account?.email) && <Badge tone="neutral">관리자</Badge>}</div></div>
+          <div><h1 className="text-xl font-semibold tracking-tight text-gray-950">성과·성장관리</h1><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500"><Badge tone="success">Google Drive 연결됨</Badge><span>{account?.email || '개인 Google 계정'}</span>{role === 'admin' && <Badge tone="neutral">관리자</Badge>}</div></div>
           <div className="flex items-center gap-2"><button type="button" onClick={() => void handleSwitchAccount()} disabled={busy} className="ui-button ui-button-secondary ui-button-sm">+ 다른 계정</button><button type="button" onClick={() => void logout()} className="ui-button ui-button-ghost ui-button-sm">로그아웃</button></div>
         </div>
       </header>

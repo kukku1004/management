@@ -15,6 +15,18 @@ function migrateTask(raw: Record<string, unknown>): Task | null {
     workload: raw.workload as Task['workload'],
     objective: typeof raw.objective === 'string' ? raw.objective : '',
     achievement: typeof raw.achievement === 'string' ? raw.achievement : '',
+    classification: raw.classification === '과제' || raw.classification === '일반' ? raw.classification : undefined,
+    assignees: Array.isArray(raw.assignees) ? raw.assignees.filter((value): value is string => typeof value === 'string') : undefined,
+    startDate: typeof raw.startDate === 'string' ? raw.startDate : undefined,
+    endDate: typeof raw.endDate === 'string' ? raw.endDate : undefined,
+    source: raw.source === 'google-sheets' || raw.source === 'manual' || raw.source === 'excel' ? raw.source : undefined,
+    sourceSpreadsheetId: typeof raw.sourceSpreadsheetId === 'string' ? raw.sourceSpreadsheetId : undefined,
+    sourceSheetName: typeof raw.sourceSheetName === 'string' ? raw.sourceSheetName : undefined,
+    sourceRow: typeof raw.sourceRow === 'number' ? raw.sourceRow : undefined,
+    sourceStartText: typeof raw.sourceStartText === 'string' ? raw.sourceStartText : undefined,
+    sourceEndText: typeof raw.sourceEndText === 'string' ? raw.sourceEndText : undefined,
+    dateNeedsReview: raw.dateNeedsReview === true,
+    submittedByMember: raw.submittedByMember === true,
   }
 }
 

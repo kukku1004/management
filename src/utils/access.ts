@@ -7,9 +7,9 @@ export type AccessTabKey = 'tasks' | 'matrix' | 'results' | 'notes' | 'access'
 // from the access-management screen backed by the management Drive workspace.
 const INITIAL_LEADER_EMAILS = new Set<string>([])
 
-export function resolveUserRole(email?: string | null): UserRole {
+export async function resolveUserRole(email?: string | null): Promise<UserRole> {
   const normalized = email?.trim().toLowerCase()
-  if (isAdminEmail(normalized)) return 'admin'
+  if (await isAdminEmail(normalized)) return 'admin'
   if (normalized && INITIAL_LEADER_EMAILS.has(normalized)) return 'leader'
   return 'member'
 }

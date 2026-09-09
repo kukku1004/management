@@ -12,7 +12,8 @@ import ProjectSetupStart from './components/ProjectSetupStart'
 import { evaluationPeriodFolderName, formatEvaluationPeriod } from './utils/workspace'
 import { CriteriaWorkspaceProvider } from './components/CriteriaWorkspaceLayout'
 import AccessManagement from './components/AccessManagement'
-import { canAccessTab, resolveUserRole } from './utils/access'
+import { canAccessTab } from './utils/access'
+import { useUserRole } from './hooks/useUserRole'
 
 export default function App() {
   return <WorkspaceProvider><WorkspaceRouter /></WorkspaceProvider>
@@ -37,7 +38,7 @@ function WorkspaceRouter() {
 function ProjectApp() {
   const { state, dispatch } = useAppState()
   const { workspace, activeProject, activeTeam, account, resetWorkspace } = useWorkspace()
-  const role = resolveUserRole(account?.email)
+  const role = useUserRole(account?.email)
   const [activeTab, setActiveTab] = useState<TabKey>('tasks')
   const [dataManagementOpen, setDataManagementOpen] = useState(false)
   const [quickStartOpen, setQuickStartOpen] = useState(() => state.tasks.length === 0 && state.members.length === 0)
@@ -51,7 +52,7 @@ function ProjectApp() {
 
   return (
     <div className="min-h-screen bg-white">
-      <Navigation activeTab={activeTab} onTabChange={handleTabChange} onOpenDataManagement={() => setDataManagementOpen(true)} onOpenQuickStart={() => setQuickStartOpen(true)} />
+      <Navigation role={role} activeTab={activeTab} onTabChange={handleTabChange} onOpenDataManagement={() => setDataManagementOpen(true)} onOpenQuickStart={() => setQuickStartOpen(true)} />
       <CriteriaWorkspaceProvider><main className="mx-auto w-full max-w-[1920px] px-4 py-8 sm:px-6">
         {activeTab === 'tasks' && <TaskManagement />}
         {activeTab === 'matrix' && <EvaluationMatrix />}

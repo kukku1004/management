@@ -13,6 +13,18 @@ export interface Task {
   workload: Workload
   objective: string
   achievement: string
+  classification?: '과제' | '일반'
+  assignees?: string[]
+  startDate?: string
+  endDate?: string
+  source?: 'google-sheets' | 'manual' | 'excel'
+  sourceSpreadsheetId?: string
+  sourceSheetName?: string
+  sourceRow?: number
+  sourceStartText?: string
+  sourceEndText?: string
+  dateNeedsReview?: boolean
+  submittedByMember?: boolean
 }
 
 export interface TeamMember {

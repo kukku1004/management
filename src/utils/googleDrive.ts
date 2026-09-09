@@ -9,7 +9,7 @@ import {
 } from './fullBackup'
 import { evaluationPeriodFolderName, migrateWorkspace } from './workspace'
 
-const GOOGLE_SCOPE = 'openid email https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send'
+const GOOGLE_SCOPE = 'openid email https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets.readonly https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/gmail.send'
 const DRIVE_API = 'https://www.googleapis.com/drive/v3'
 const DRIVE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'

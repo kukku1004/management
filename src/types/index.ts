@@ -25,6 +25,7 @@ export interface Task {
   sourceEndText?: string
   dateNeedsReview?: boolean
   submittedByMember?: boolean
+  sourceGroup?: string
 }
 
 export interface TeamMember {

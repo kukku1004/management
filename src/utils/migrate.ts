@@ -27,6 +27,7 @@ function migrateTask(raw: Record<string, unknown>): Task | null {
     sourceEndText: typeof raw.sourceEndText === 'string' ? raw.sourceEndText : undefined,
     dateNeedsReview: raw.dateNeedsReview === true,
     submittedByMember: raw.submittedByMember === true,
+    sourceGroup: typeof raw.sourceGroup === 'string' ? raw.sourceGroup : undefined,
   }
 }
 

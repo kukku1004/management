@@ -39,8 +39,11 @@ export default function TaskManagement() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
   const [sheetsFeedback, setSheetsFeedback] = useState<GoogleSheetTaskImport | null>(null)
+  const [activeSourceGroup, setActiveSourceGroup] = useState('전체')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hasTasks = state.tasks.length > 0
+  const sourceGroups = Array.from(new Set(state.tasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
+  const visibleTasks = activeSourceGroup === '전체' ? state.tasks : state.tasks.filter((task) => task.sourceGroup === activeSourceGroup)
 
   function addTask() {
     const name = newForm.name.trim()
@@ -86,7 +89,12 @@ export default function TaskManagement() {
   }
 
   function toggleAllTasks() {
-    setSelectedTaskIds((current) => current.size === state.tasks.length ? new Set() : new Set(state.tasks.map((task) => task.id)))
+    setSelectedTaskIds((current) => {
+      const allVisibleSelected = visibleTasks.length > 0 && visibleTasks.every((task) => current.has(task.id))
+      const next = new Set(current)
+      visibleTasks.forEach((task) => allVisibleSelected ? next.delete(task.id) : next.add(task.id))
+      return next
+    })
   }
 
   function handleBulkDeleteConfirm() {
@@ -150,12 +158,18 @@ export default function TaskManagement() {
 
       {hasTasks ? (
       <div>
+      {sourceGroups.length > 0 && <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200" role="tablist" aria-label="A열 기준 과제 그룹">
+        {['전체', ...sourceGroups].map((group) => {
+          const count = group === '전체' ? state.tasks.length : state.tasks.filter((task) => task.sourceGroup === group).length
+          return <button key={group} type="button" role="tab" aria-selected={activeSourceGroup === group} onClick={() => { setActiveSourceGroup(group); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeSourceGroup === group ? 'ui-tab-active' : ''}`}>{group} <span className="ml-1 text-xs text-gray-400">{count}</span></button>
+        })}
+      </div>}
       {selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><p className="text-sm font-medium text-orange-800">과제 {selectedTaskIds.size}개 선택됨</p><button type="button" onClick={() => setBulkDeleteOpen(true)} className="ui-button ui-button-danger ui-button-sm">선택 과제 삭제</button></div>}
       <div className="ui-table-wrap">
         <table className="ui-table min-w-[1180px]">
           <thead>
             <tr>
-              <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="과제 전체 선택" checked={selectedTaskIds.size === state.tasks.length} onChange={toggleAllTasks} /></th>
+              <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="현재 탭 과제 전체 선택" checked={visibleTasks.length > 0 && visibleTasks.every((task) => selectedTaskIds.has(task.id))} onChange={toggleAllTasks} /></th>
               <th className="px-4 py-3 font-semibold">과제명</th>
               <th className="px-4 py-3 font-semibold">분류</th>
               <th className="px-4 py-3 font-semibold">담당자</th>
@@ -169,7 +183,7 @@ export default function TaskManagement() {
             </tr>
           </thead>
           <tbody>
-            {state.tasks.map((task) => editingTaskId === task.id ? (
+            {visibleTasks.map((task) => editingTaskId === task.id ? (
               <tr key={task.id} className="border-t border-gray-200 bg-orange-50/30 text-black">
                 <td className="px-3 py-2 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>
                 <td className="px-3 py-2"><input value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} className="ui-field ui-field-sm" />{editFormError && <p className="mt-1 text-xs text-danger">{editFormError}</p>}</td>

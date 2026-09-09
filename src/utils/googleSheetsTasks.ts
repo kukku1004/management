@@ -46,7 +46,7 @@ function firstDate(value: string): { iso?: string; needsReview: boolean } {
 
 export async function importTasksFromGoogleSheet(url: string, existing: Task[]): Promise<GoogleSheetTaskImport> {
   const spreadsheetId = spreadsheetIdFromUrl(url)
-  const range = `'${SOURCE_SHEET}'!D${SOURCE_START_ROW}:BP509`
+  const range = `'${SOURCE_SHEET}'!A${SOURCE_START_ROW}:BP509`
   const endpoint = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?majorDimension=ROWS`
   const response = await googleAuthorizedFetch<SheetValuesResponse>(endpoint)
   const next = [...existing]
@@ -55,14 +55,16 @@ export async function importTasksFromGoogleSheet(url: string, existing: Task[]):
   let skippedCount = 0
   let reviewCount = 0
 
+  let sourceGroup = ''
   ;(response.values ?? []).forEach((row, index) => {
-    const name = cell(row, 0) // D
-    const classification = cell(row, 54) // BF
+    sourceGroup = cell(row, 0) || sourceGroup // A (merged cells inherit the prior value)
+    const name = cell(row, 3) // D
+    const classification = cell(row, 57) // BF
     if (!name || (classification !== '과제' && classification !== '일반')) { skippedCount += 1; return }
     const sourceRow = SOURCE_START_ROW + index
-    const assignees = assigneesFromCell(cell(row, 58)) // BJ
-    const sourceStartText = cell(row, 61) // BM
-    const sourceEndText = cell(row, 64) // BP
+    const assignees = assigneesFromCell(cell(row, 61)) // BJ
+    const sourceStartText = cell(row, 64) // BM
+    const sourceEndText = cell(row, 67) // BP
     const start = firstDate(sourceStartText)
     const end = firstDate(sourceEndText)
     const dateNeedsReview = start.needsReview || end.needsReview
@@ -82,6 +84,7 @@ export async function importTasksFromGoogleSheet(url: string, existing: Task[]):
       sourceEndText,
       dateNeedsReview,
       submittedByMember: true,
+      sourceGroup: sourceGroup || '미분류',
     }
     if (foundIndex >= 0) {
       next[foundIndex] = { ...next[foundIndex], ...sourceFields } as Task

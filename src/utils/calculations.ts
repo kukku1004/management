@@ -66,7 +66,7 @@ export interface TaskScoreRow {
 }
 
 export function calcAllTaskScores(tasks: Task[], criteria: Criteria): TaskScoreRow[] {
-  return tasks.map((task) => ({ task, score: calcTaskScore(task, criteria) }))
+  return tasks.filter((task) => !task.parentTaskId).map((task) => ({ task, score: calcTaskScore(task, criteria) }))
 }
 
 export function getContribution(
@@ -182,10 +182,11 @@ export function calcMemberParticipation(
   contributions: Contribution[],
   criteria?: Criteria,
 ): { count: number; totalShare: number } {
-  if (criteria?.contributionWeight === 0) return { count: tasks.length, totalShare: tasks.length }
+  const evaluationTasks = tasks.filter((task) => !task.parentTaskId)
+  if (criteria?.contributionWeight === 0) return { count: evaluationTasks.length, totalShare: evaluationTasks.length }
   let count = 0
   let totalShare = 0
-  for (const task of tasks) {
+  for (const task of evaluationTasks) {
     const percent = getContributionPercent(contributions, task.id, member.id)
     if (percent > 0) {
       count += 1

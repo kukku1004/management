@@ -134,7 +134,9 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       }
 
     case 'DELETE_TASK': {
-      const tasks = state.tasks.filter((t) => t.id !== action.payload.id)
+      const tasks = state.tasks
+        .filter((t) => t.id !== action.payload.id)
+        .map((t) => t.parentTaskId === action.payload.id ? { ...t, parentTaskId: undefined } : t)
       const contributions = state.contributions.filter((c) => c.taskId !== action.payload.id)
       return { ...state, tasks, contributions: syncAutoDistribution(tasks, state.members, contributions) }
     }

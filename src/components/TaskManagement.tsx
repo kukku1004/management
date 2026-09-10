@@ -36,14 +36,17 @@ export default function TaskManagement() {
   const [uploadOpen, setUploadOpen] = useState(false)
   const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set())
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
-  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [groupingOpen, setGroupingOpen] = useState(false)
+  const [groupName, setGroupName] = useState('')
+  const [groupError, setGroupError] = useState('')
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
   const [sheetsFeedback, setSheetsFeedback] = useState<GoogleSheetTaskImport | null>(null)
   const [activeSourceGroup, setActiveSourceGroup] = useState('전체')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hasTasks = state.tasks.length > 0
   const sourceGroups = Array.from(new Set(state.tasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
-  const visibleTasks = activeSourceGroup === '전체' ? state.tasks : state.tasks.filter((task) => task.sourceGroup === activeSourceGroup)
+  const rootTasks = state.tasks.filter((task) => !task.parentTaskId)
+  const visibleTasks = activeSourceGroup === '전체' ? rootTasks : rootTasks.filter((task) => task.sourceGroup === activeSourceGroup)
 
   function addTask() {
     const name = newForm.name.trim()
@@ -97,11 +100,20 @@ export default function TaskManagement() {
     })
   }
 
-  function handleBulkDeleteConfirm() {
-    dispatch({ type: 'DELETE_TASKS', payload: { ids: Array.from(selectedTaskIds) } })
-    setRecentlyAddedIds((current) => new Set(Array.from(current).filter((id) => !selectedTaskIds.has(id))))
-    setSelectedTaskIds(new Set())
-    setBulkDeleteOpen(false)
+  function createTaskGroup() {
+    const name = groupName.trim()
+    if (!name) { setGroupError('상위과제명을 입력하세요.'); return }
+    if (state.tasks.some(task => task.name === name)) { setGroupError('같은 이름의 과제가 이미 있습니다.'); return }
+    const children = state.tasks.filter(task => selectedTaskIds.has(task.id) && !task.parentTaskId)
+    if (children.length < 2) { setGroupError('개별과제를 2개 이상 선택하세요.'); return }
+    const parentId = uuidv4()
+    children.forEach(child => dispatch({ type: 'UPDATE_TASK', payload: { ...child, parentTaskId: parentId } }))
+    const assignees = Array.from(new Set(children.flatMap(task => task.assignees ?? [])))
+    const starts = children.map(task => task.startDate).filter((date): date is string => Boolean(date)).sort()
+    const ends = children.map(task => task.endDate).filter((date): date is string => Boolean(date)).sort()
+    const parent: Task = { id: parentId, name, importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '', classification: '과제', assignees, startDate: starts[0], endDate: ends[ends.length - 1], source: 'manual', isTaskGroup: true, sourceGroup: children.every(item => item.sourceGroup === children[0]?.sourceGroup) ? children[0]?.sourceGroup : '팀장 그룹핑' }
+    dispatch({ type: 'ADD_TASK', payload: parent })
+    setRecentlyAddedIds(current => new Set(current).add(parentId)); setSelectedTaskIds(new Set()); setGroupName(''); setGroupError(''); setGroupingOpen(false)
   }
 
   async function importTaskFile(file: File | undefined) {
@@ -164,7 +176,7 @@ export default function TaskManagement() {
           return <button key={group} type="button" role="tab" aria-selected={activeSourceGroup === group} onClick={() => { setActiveSourceGroup(group); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeSourceGroup === group ? 'ui-tab-active' : ''}`}>{group} <span className="ml-1 text-xs text-gray-400">{count}</span></button>
         })}
       </div>}
-      {selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><p className="text-sm font-medium text-orange-800">과제 {selectedTaskIds.size}개 선택됨</p><button type="button" onClick={() => setBulkDeleteOpen(true)} className="ui-button ui-button-danger ui-button-sm">선택 과제 삭제</button></div>}
+      {selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><div><p className="text-sm font-medium text-orange-900">개별과제 {selectedTaskIds.size}개 선택됨</p><p className="mt-1 text-xs text-orange-700">선택한 과제를 팀장이 평가할 하나의 상위과제로 묶습니다.</p></div><button type="button" onClick={() => { setGroupingOpen(true); setGroupError('') }} disabled={selectedTaskIds.size < 2} className="ui-button ui-button-primary ui-button-sm">상위과제로 그룹핑</button></div>}
       <div className="ui-table-wrap">
         <table className="ui-table min-w-[1180px]">
           <thead>
@@ -207,6 +219,7 @@ export default function TaskManagement() {
                       <Badge tone="accent">N</Badge>
                     )}
                   </span>
+                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">포함된 개별과제 {state.tasks.filter(child => child.parentTaskId === task.id).length}개</summary><ul className="mt-2 space-y-1 border-l-2 border-orange-200 pl-3 text-xs text-gray-600">{state.tasks.filter(child => child.parentTaskId === task.id).map(child => <li key={child.id}>{child.name}<span className="ml-2 text-gray-400">{child.assignees?.join(', ') || '담당자 미지정'}</span></li>)}</ul></details>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{task.classification ?? '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{task.assignees?.join(', ') || '-'}</td>
@@ -228,7 +241,7 @@ export default function TaskManagement() {
                       onClick={() => setDeletingTask(task)}
                       className="ui-button ui-button-danger ui-button-sm"
                     >
-                      삭제
+                      {task.isTaskGroup ? '그룹 해제' : '삭제'}
                     </button>
                   </div>
                 </td>
@@ -255,19 +268,13 @@ export default function TaskManagement() {
 
       <ConfirmDialog
         open={deletingTask !== null}
-        title="과제 삭제"
-        message={`'${deletingTask?.name}' 과제를 삭제하시겠습니까? 관련된 기여도 데이터도 함께 삭제됩니다.`}
+        title={deletingTask?.isTaskGroup ? '상위과제 그룹 해제' : '과제 삭제'}
+        message={deletingTask?.isTaskGroup ? `'${deletingTask.name}' 상위과제를 해제하시겠습니까? 포함된 개별과제는 삭제되지 않고 목록으로 돌아갑니다.` : `'${deletingTask?.name}' 과제를 삭제하시겠습니까? 관련된 기여도 데이터도 함께 삭제됩니다.`}
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeletingTask(null)}
       />
       {sheetsImportOpen && <GoogleSheetsTaskImportDialog tasks={state.tasks} onImport={handleSheetsImport} onClose={() => setSheetsImportOpen(false)} />}
-      <ConfirmDialog
-        open={bulkDeleteOpen}
-        title="선택 과제 삭제"
-        message={`선택한 과제 ${selectedTaskIds.size}개를 삭제하시겠습니까? 해당 과제의 기여도와 피어리뷰 데이터도 함께 삭제됩니다.`}
-        onConfirm={handleBulkDeleteConfirm}
-        onCancel={() => setBulkDeleteOpen(false)}
-      />
+      {groupingOpen && <div className="ui-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="task-group-title"><div className="ui-modal-panel max-w-lg"><h2 id="task-group-title" className="ui-modal-title">상위과제로 그룹핑</h2><p className="mt-2 text-sm leading-6 text-gray-600">선택한 개별과제 {selectedTaskIds.size}개와 담당자를 하나의 상위과제에 연결합니다. 원본 개별과제는 삭제되지 않습니다.</p><label className="ui-label mt-5">상위과제명<input autoFocus value={groupName} onChange={event => setGroupName(event.target.value)} onKeyDown={event => event.key === 'Enter' && createTaskGroup()} placeholder="예: 플랫폼 UX 개선" className="ui-field mt-1" /></label>{groupError && <p className="mt-2 text-xs text-danger">{groupError}</p>}<div className="mt-4 max-h-48 overflow-y-auto border-y border-gray-200">{state.tasks.filter(task => selectedTaskIds.has(task.id)).map(task => <div key={task.id} className="border-b border-gray-100 px-3 py-2.5 text-sm last:border-0"><p className="font-medium text-gray-900">{task.name}</p><p className="mt-1 text-xs text-gray-500">담당자 {task.assignees?.join(', ') || '미지정'}</p></div>)}</div><div className="ui-modal-actions"><button type="button" onClick={() => setGroupingOpen(false)} className="ui-button ui-button-ghost">취소</button><button type="button" onClick={createTaskGroup} className="ui-button ui-button-primary">상위과제 만들기</button></div></div></div>}
     </div>
     </CriteriaWorkspaceLayout>
   )

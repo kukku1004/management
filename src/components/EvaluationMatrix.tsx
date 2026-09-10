@@ -26,7 +26,7 @@ const MEMBER_MIN_WIDTH = 260
 export default function EvaluationMatrix() {
   const { state, dispatch } = useAppState()
   const { members, contributions, criteria } = state
-  const tasks = state.tasks.filter((task) => !task.parentTaskId)
+  const tasks = state.tasks.filter((task) => !task.isTaskGroup)
   const [detail, setDetail] = useState<{ taskId: string; memberId: string } | null>(null)
   const [rankingOpen, setRankingOpen] = useState(true)
   const [taskWidth, setTaskWidth] = useState(260)
@@ -93,12 +93,14 @@ export default function EvaluationMatrix() {
                 <colgroup>{members.map((member) => <col key={member.id} style={{ width: `${100 / members.length}%` }} />)}</colgroup>
                 <thead><tr className="h-14">{members.map((member) => { const result = resultByMember.get(member.id); const rank = result ? results.filter((item) => item.performanceScore > result.performanceScore).length + 1 : '-'; return <th key={member.id} className="border-l border-gray-200 px-4 py-2 text-center align-middle"><div className="font-semibold normal-case tracking-normal text-gray-950">{member.name}</div><div className="mt-0.5 whitespace-nowrap text-[11px] font-medium normal-case tracking-normal text-gray-500">{rank}위 · {result?.performanceScore.toFixed(1) ?? '0.0'}점 · {result?.grade ?? '-'}</div></th> })}</tr></thead>
                 <tbody>{tasks.map((task) => <tr key={task.id} className="h-16">{members.map((member) => {
+                        const isAssigned = !task.assignees?.length || task.assignees.some((name) => name.trim() === member.name.trim())
                         const percent = getContributionPercent(contributions, task.id, member.id)
                         const grade = getPersonalPerformanceGrade(contributions, task.id, member.id)
                         const contribution = getContribution(contributions, task.id, member.id)
                         const peer = summarizePeerReviews(state.peerReviews, task.id, member.id)
                         return (
-                          <td key={member.id} className="border-l border-gray-200 px-3 py-2">
+                          <td key={member.id} className={`border-l border-gray-200 px-3 py-2 ${isAssigned ? '' : 'bg-gray-50'}`}>
+                            {!isAssigned ? <div className="text-center text-xs text-gray-300">—</div> :
                             <div className="flex items-center justify-center gap-3">
                               <div className={`flex h-12 w-[180px] shrink-0 items-center rounded-[10px] border px-4 ${percent > 0 ? 'border-gray-300 bg-white' : 'border-gray-200 bg-white'}`}>
                                 {contributionEnabled && <div className="flex min-w-0 flex-1 items-center gap-2"><input type="number" min={0} max={100} step={1} value={percent || ''} onChange={(event) => handlePercentChange(task.id, member.id, event.target.value)} placeholder="0" className="w-11 shrink-0 appearance-none bg-transparent text-right text-base font-medium tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" /><span className="shrink-0 text-sm text-gray-400">%</span></div>}
@@ -107,7 +109,7 @@ export default function EvaluationMatrix() {
                               </div>
                               <EvaluationNoteButton note={contribution?.evaluationNote} label={`${member.name} · ${task.name} 평가 근거`} onSave={(note) => handleNoteSave(task.id, member.id, note)} />
                               {peerReviewEnabled && peer.peerCount > 0 && <button type="button" onClick={() => setDetail({ taskId: task.id, memberId: member.id })} title={Math.abs(percent - (peer.peerContribution ?? percent)) >= 10 ? '피어리뷰와 현재 평가 차이 큼' : '피어리뷰 있음'} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-gray-100"><span className={`h-2.5 w-2.5 rounded-full ${Math.abs(percent - (peer.peerContribution ?? percent)) >= 10 ? 'bg-amber-500' : 'bg-blue-500'}`} /></button>}
-                            </div>
+                            </div>}
                           </td>
                         )
                       })}</tr>)}</tbody>

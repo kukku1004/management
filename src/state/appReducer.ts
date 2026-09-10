@@ -91,12 +91,19 @@ export function syncAutoDistribution(
 
   let result = contributions
   for (const task of tasks) {
+    if (task.isTaskGroup) {
+      result = result.filter((contribution) => contribution.taskId !== task.id)
+      continue
+    }
     const taskContributions = result.filter((c) => c.taskId === task.id)
     const isFullyAuto = taskContributions.every((c) => c.isAutoDistributed)
     if (!isFullyAuto) continue
 
-    const shares = distributeEqually(members.length)
-    const desired: Contribution[] = members.map((member, i) => ({
+    const assignedMembers = task.assignees?.length
+      ? members.filter((member) => task.assignees?.some((name) => name.trim() === member.name.trim()))
+      : members
+    const shares = distributeEqually(assignedMembers.length)
+    const desired: Contribution[] = assignedMembers.map((member, i) => ({
       taskId: task.id,
       memberId: member.id,
       contributionPercent: shares[i],
@@ -127,11 +134,10 @@ export function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, tasks, contributions: syncAutoDistribution(tasks, state.members, state.contributions) }
     }
 
-    case 'UPDATE_TASK':
-      return {
-        ...state,
-        tasks: state.tasks.map((t) => (t.id === action.payload.id ? action.payload : t)),
-      }
+    case 'UPDATE_TASK': {
+      const tasks = state.tasks.map((t) => (t.id === action.payload.id ? action.payload : t))
+      return { ...state, tasks, contributions: syncAutoDistribution(tasks, state.members, state.contributions) }
+    }
 
     case 'DELETE_TASK': {
       const tasks = state.tasks

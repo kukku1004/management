@@ -66,7 +66,7 @@ export interface TaskScoreRow {
 }
 
 export function calcAllTaskScores(tasks: Task[], criteria: Criteria): TaskScoreRow[] {
-  return tasks.filter((task) => !task.parentTaskId).map((task) => ({ task, score: calcTaskScore(task, criteria) }))
+  return tasks.filter((task) => !task.isTaskGroup).map((task) => ({ task, score: calcTaskScore(task, criteria) }))
 }
 
 export function getContribution(
@@ -142,6 +142,7 @@ export function calcMemberCumulativeScore(
   criteria: Criteria,
 ): number {
   return taskScores.reduce((sum, row) => {
+    if (row.task.assignees?.length && !row.task.assignees.some((name) => name.trim() === member.name.trim())) return sum
     const contribution = getContribution(contributions, row.task.id, member.id)
     const contributionFactor = blendByWeight(1, (contribution?.contributionPercent ?? 0) / 100, criteria.contributionWeight)
     const personalFactor = calcPersonalGradeFactor(contribution, criteria)
@@ -182,11 +183,12 @@ export function calcMemberParticipation(
   contributions: Contribution[],
   criteria?: Criteria,
 ): { count: number; totalShare: number } {
-  const evaluationTasks = tasks.filter((task) => !task.parentTaskId)
-  if (criteria?.contributionWeight === 0) return { count: evaluationTasks.length, totalShare: evaluationTasks.length }
+  const evaluationTasks = tasks.filter((task) => !task.isTaskGroup)
+  const memberTasks = evaluationTasks.filter((task) => !task.assignees?.length || task.assignees.some((name) => name.trim() === member.name.trim()))
+  if (criteria?.contributionWeight === 0) return { count: memberTasks.length, totalShare: memberTasks.length }
   let count = 0
   let totalShare = 0
-  for (const task of evaluationTasks) {
+  for (const task of memberTasks) {
     const percent = getContributionPercent(contributions, task.id, member.id)
     if (percent > 0) {
       count += 1

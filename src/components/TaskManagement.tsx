@@ -50,6 +50,8 @@ export default function TaskManagement() {
   const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
   const [sheetsFeedback, setSheetsFeedback] = useState<GoogleSheetTaskImport | null>(null)
   const [activeSourceGroup, setActiveSourceGroup] = useState('전체')
+  const [registrationLevel, setRegistrationLevel] = useState<'L2' | 'L3'>('L3')
+  const [newParentTaskId, setNewParentTaskId] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const hasTasks = state.tasks.length > 0
   const sourceGroups = Array.from(new Set(state.tasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
@@ -62,8 +64,11 @@ export default function TaskManagement() {
     const name = newForm.name.trim()
     if (!name) { setNewFormError('과제명을 입력하세요.'); return }
     if (state.tasks.some((task) => task.name === name)) { setNewFormError(`과제명 '${name}'은(는) 이미 존재합니다.`); return }
-    const task: Task = { id: uuidv4(), ...newForm, name, objective: newForm.objective.trim(), achievement: newForm.achievement.trim(), assignees: newForm.assignees.split(',').map(value => value.trim()).filter(Boolean), source: 'manual' }
+    if (registrationLevel === 'L3' && rootTasks.some((task) => task.isTaskGroup) && !newParentTaskId) { setNewFormError('하위과제를 넣을 L2 상위과제를 선택하세요.'); return }
+    const assignees = newForm.assignees.split(',').map(value => value.trim()).filter(Boolean)
+    const task: Task = { id: uuidv4(), ...newForm, name, objective: newForm.objective.trim(), achievement: newForm.achievement.trim(), assignees, source: 'manual', isTaskGroup: registrationLevel === 'L2', parentTaskId: registrationLevel === 'L3' ? newParentTaskId || undefined : undefined }
     dispatch({ type: 'ADD_TASK', payload: task })
+    assignees.forEach((assignee) => { if (!state.members.some((member) => normalizeName(member.name) === normalizeName(assignee))) dispatch({ type: 'ADD_MEMBER', payload: { id: uuidv4(), name: assignee, active: true, position: '', level: '', yearsOfService: null, role: '', comment: '' } }) })
     setRecentlyAddedIds((current) => new Set(current).add(task.id))
     setNewForm(EMPTY_TASK_FORM)
     setNewFormError('')
@@ -145,10 +150,13 @@ export default function TaskManagement() {
 
   function handleSheetsImport(result: GoogleSheetTaskImport) {
     dispatch({ type: 'IMPORT_TASKS', payload: result.tasks })
+    result.importedAssignees.forEach((name) => { if (!state.members.some((member) => normalizeName(member.name) === normalizeName(name))) dispatch({ type: 'ADD_MEMBER', payload: { id: uuidv4(), name, active: true, position: '', level: '', yearsOfService: null, role: '', comment: '' } }) })
     setSheetsFeedback(result)
     setRecentlyAddedIds(new Set(result.tasks.slice(-result.addedCount).map((task) => task.id)))
     setSelectedTaskIds(new Set())
   }
+
+  function normalizeName(value: string) { return value.trim().normalize('NFC') }
 
   return (
     <CriteriaWorkspaceLayout>
@@ -177,7 +185,7 @@ export default function TaskManagement() {
           }}
         />
       )}
-      {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">Google Sheets 과제 {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신했습니다.</div>}
+      {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">L2 상위과제 {sheetsFeedback.selectedGroupCount}개를 선택해 과제 {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신했습니다. 담당자 {sheetsFeedback.importedAssignees.length}명을 팀원 목록에 연결했습니다.</div>}
 
       {hasTasks ? (
       <div>
@@ -265,6 +273,7 @@ export default function TaskManagement() {
       ) : null}
 
       {activeView === 'register' && <section className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
+        <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-gray-100 pb-4">{canManage && <label className="text-sm font-medium text-black">등록 레벨<select value={registrationLevel} onChange={(event) => { setRegistrationLevel(event.target.value as 'L2' | 'L3'); setNewParentTaskId('') }} className="ui-field mt-1 w-48"><option value="L2">L2 상위과제</option><option value="L3">L3 하위과제</option></select></label>}{registrationLevel === 'L3' && <label className="min-w-72 flex-1 text-sm font-medium text-black">소속 L2 상위과제<select value={newParentTaskId} onChange={(event) => setNewParentTaskId(event.target.value)} className="ui-field mt-1"><option value="">{rootTasks.some((task) => task.isTaskGroup) ? '상위과제 선택' : '등록된 상위과제 없음'}</option>{rootTasks.filter((task) => task.isTaskGroup).map((task) => <option key={task.id} value={task.id}>{task.sourceLevel1 ? `${task.sourceLevel1} / ` : ''}{task.name}</option>)}</select></label>}</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-black">과제명 <span className="text-danger">*</span><input value={newForm.name} onChange={(event) => setNewForm((form) => ({ ...form, name: event.target.value }))} placeholder="예: 신규 랜딩페이지 제작" className={`ui-field mt-1 ${newFormError && !newForm.name.trim() ? 'border-danger' : ''}`} /></label>
           <label className="text-sm font-medium text-black">분류<select value={newForm.classification} onChange={event => setNewForm(form => ({ ...form, classification: event.target.value as '과제' | '일반' }))} className="ui-field mt-1"><option>과제</option><option>일반</option></select></label>

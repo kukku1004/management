@@ -26,6 +26,8 @@ export interface Task {
   dateNeedsReview?: boolean
   submittedByMember?: boolean
   sourceGroup?: string
+  sourceLevel1?: string
+  sourceLevel2?: string
   parentTaskId?: string
   isTaskGroup?: boolean
 }

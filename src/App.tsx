@@ -3,7 +3,7 @@ import { AppProvider, useAppState } from './state/AppContext'
 import { WorkspaceProvider, useWorkspace } from './state/WorkspaceContext'
 import Navigation, { type TabKey } from './components/Navigation'
 import TaskManagement from './components/TaskManagement'
-import EvaluationMatrix from './components/EvaluationMatrix'
+import TeamManagement from './components/TeamManagement'
 import EvaluationResults from './components/EvaluationResults'
 import MeetingNotes from './components/MeetingNotes'
 import WorkspaceStart from './components/WorkspaceStart'
@@ -61,7 +61,7 @@ function ProjectApp() {
       <Navigation role={role} activeTab={activeTab} onTabChange={handleTabChange} onOpenDataManagement={() => setDataManagementOpen(true)} onOpenQuickStart={() => setQuickStartOpen(true)} />
       <CriteriaWorkspaceProvider><main className="mx-auto w-full max-w-[1920px] px-4 py-8 sm:px-6">
         {activeTab === 'tasks' && <TaskManagement />}
-        {activeTab === 'matrix' && <EvaluationMatrix />}
+        {activeTab === 'matrix' && <TeamManagement />}
         {activeTab === 'results' && <EvaluationResults />}
         {activeTab === 'notes' && <MeetingNotes />}
         {activeTab === 'access' && <AccessManagement />}

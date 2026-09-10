@@ -1,31 +1,19 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Task } from '../types'
-import { importTasksFromGoogleSheet, type GoogleSheetTaskImport } from '../utils/googleSheetsTasks'
+import { importSelectedGoogleSheetGroups, loadGoogleSheetTaskPreview, type GoogleSheetTaskImport, type GoogleSheetTaskPreview } from '../utils/googleSheetsTasks'
 
-const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1wnE6O8uIdCPPPHPYvQj5SBCSN9LlunkNT8dncA7NL2o/edit'
+const DEFAULT_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1wnE6O8uIdCPPPHPYvQj5SBCSN9LlunkNT8dncA7NL2o/edit?gid=2042819477#gid=2042819477'
 
 export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose }: { tasks: Task[]; onImport: (result: GoogleSheetTaskImport) => void; onClose: () => void }) {
-  const [url, setUrl] = useState(DEFAULT_SHEET_URL)
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  async function runImport() {
-    setBusy(true); setError('')
-    try { onImport(await importTasksFromGoogleSheet(url, tasks)); onClose() }
-    catch (reason) {
-      const message = reason instanceof Error ? reason.message : ''
-      setError(/not found|404|entity/i.test(message)
-        ? '현재 로그인한 Google 계정이 시트를 찾지 못했습니다. 로그아웃 후 다시 연결하고, 해당 계정에 시트가 공유되었는지 확인해 주세요.'
-        : message || 'Google Sheets 데이터를 가져오지 못했습니다.')
-    }
-    finally { setBusy(false) }
-  }
-  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label="Google Sheets 과제 가져오기">
-    <div className="w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
-      <div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold text-gray-950">Google Sheets에서 팀원 과제 가져오기</h2><p className="mt-1 text-sm text-gray-500">2번째 탭 `2026 추진현황`을 읽기 전용으로 연결합니다.</p></div><button type="button" onClick={onClose} className="ui-button ui-button-ghost ui-button-sm">닫기</button></div>
-      <label className="mt-5 block text-sm font-medium text-gray-900">Google Sheets 링크<input className="ui-field mt-2" value={url} onChange={(event) => setUrl(event.target.value)} /></label>
-      <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">탭 그룹 A · 과제명 D · 분류 BF · 담당자 BJ · 시작일 BM · 완료일 BP</div>
-      {error && <p className="mt-3 text-sm text-danger">{error}{error.includes('403') || error.includes('권한') ? ' Google 계정을 다시 연결하여 Sheets 읽기 권한을 허용해 주세요.' : ''}</p>}
-      <div className="mt-6 flex justify-end gap-2"><button type="button" onClick={onClose} className="ui-button ui-button-secondary">취소</button><button type="button" disabled={busy} onClick={() => void runImport()} className="ui-button ui-button-primary">{busy ? '가져오는 중…' : '과제 가져오기'}</button></div>
-    </div>
-  </div>
+  const [url, setUrl] = useState(DEFAULT_SHEET_URL); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const [preview, setPreview] = useState<GoogleSheetTaskPreview | null>(null); const [activeLevel1, setActiveLevel1] = useState(''); const [selected, setSelected] = useState<Set<string>>(new Set())
+  const level1s = useMemo(() => preview ? [...new Set(preview.groups.map((group) => group.level1))] : [], [preview])
+  async function loadPreview() { setBusy(true); setError(''); try { const result = await loadGoogleSheetTaskPreview(url); setPreview(result); setActiveLevel1(result.groups[0]?.level1 ?? ''); setSelected(new Set()) } catch (reason) { const message = reason instanceof Error ? reason.message : ''; setError(/not found|404|entity/i.test(message) ? '현재 로그인한 Google 계정이 시트를 찾지 못했습니다. 해당 계정에 시트가 공유되었는지 확인해 주세요.' : message || 'Google Sheets 데이터를 가져오지 못했습니다.') } finally { setBusy(false) } }
+  function toggle(key: string) { setSelected((current) => { const next = new Set(current); next.has(key) ? next.delete(key) : next.add(key); return next }) }
+  function finish() { if (!preview || selected.size === 0) return; onImport(importSelectedGoogleSheetGroups(preview, selected, tasks)); onClose() }
+  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label="Google Sheets 과제 가져오기"><div className="w-full max-w-4xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
+    <div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold text-gray-950">Google Sheets 과제 선택</h2><p className="mt-1 text-sm text-gray-500">L1 탭에서 L2 상위과제를 선택하면 포함된 L3 과제와 담당자만 가져옵니다.</p></div><button type="button" onClick={onClose} className="ui-button ui-button-ghost ui-button-sm">닫기</button></div>
+    <div className="mt-5 flex gap-2"><input aria-label="Google Sheets 링크" className="ui-field" value={url} onChange={(event) => { setUrl(event.target.value); setPreview(null) }} /><button type="button" disabled={busy} onClick={() => void loadPreview()} className="ui-button ui-button-secondary whitespace-nowrap">{busy ? '불러오는 중…' : '목록 확인'}</button></div>{error && <p className="mt-3 text-sm text-danger">{error}</p>}
+    {preview && <div className="mt-5 overflow-hidden rounded-lg border border-gray-200"><div className="flex overflow-x-auto border-b border-gray-200 bg-gray-50">{level1s.map((level1) => <button key={level1} type="button" onClick={() => setActiveLevel1(level1)} className={`ui-tab shrink-0 rounded-b-none ${activeLevel1 === level1 ? 'ui-tab-active' : ''}`}>{level1} <span className="ml-1 text-xs text-gray-400">{preview.groups.filter((g) => g.level1 === level1).length}</span></button>)}</div><div className="max-h-[420px] divide-y divide-gray-100 overflow-y-auto">{preview.groups.filter((group) => group.level1 === activeLevel1).map((group) => <label key={group.key} className="flex cursor-pointer items-start gap-3 px-4 py-4 hover:bg-gray-50"><input type="checkbox" className="mt-1" checked={selected.has(group.key)} onChange={() => toggle(group.key)} /><span className="min-w-0 flex-1"><span className="block font-semibold text-gray-950">{group.level2}</span><span className="mt-1 block text-xs text-gray-500">L3 하위과제 {group.children.length}개 · 담당자 {[...new Set(group.children.flatMap((child) => child.assignees ?? []))].join(', ') || '미지정'}</span><span className="mt-2 block border-l-2 border-orange-200 pl-3 text-xs leading-5 text-gray-600">{group.children.slice(0, 4).map((child) => child.name).join(' · ')}{group.children.length > 4 ? ` 외 ${group.children.length - 4}개` : ''}</span></span></label>)}</div></div>}
+    <div className="mt-6 flex items-center justify-between"><p className="text-sm text-gray-500">선택한 L2 상위과제 {selected.size}개</p><div className="flex gap-2"><button type="button" onClick={onClose} className="ui-button ui-button-secondary">취소</button><button type="button" disabled={!preview || selected.size === 0} onClick={finish} className="ui-button ui-button-primary">선택 과제 가져오기</button></div></div>
+  </div></div>
 }

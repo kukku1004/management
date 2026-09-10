@@ -12,6 +12,7 @@ import { downloadTaskTemplate, parseTaskWorkbook, type TaskImportResult } from '
 import CriteriaWorkspaceLayout from './CriteriaWorkspaceLayout'
 import GoogleSheetsTaskImportDialog from './GoogleSheetsTaskImportDialog'
 import type { GoogleSheetTaskImport } from '../utils/googleSheetsTasks'
+import { useAuth } from '../state/AuthContext'
 
 interface TaskForm {
   name: string
@@ -20,12 +21,19 @@ interface TaskForm {
   workload: Workload
   objective: string
   achievement: string
+  classification: '과제' | '일반'
+  assignees: string
+  startDate: string
+  endDate: string
 }
 
-const EMPTY_TASK_FORM: TaskForm = { name: '', importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '' }
+const EMPTY_TASK_FORM: TaskForm = { name: '', importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '', classification: '일반', assignees: '', startDate: '', endDate: '' }
 
 export default function TaskManagement() {
   const { state, dispatch } = useAppState()
+  const { profile } = useAuth()
+  const canManage = profile?.role === 'admin' || profile?.role === 'leader'
+  const [activeView, setActiveView] = useState<'register' | 'manage'>('register')
   const [newForm, setNewForm] = useState<TaskForm>(EMPTY_TASK_FORM)
   const [newFormError, setNewFormError] = useState('')
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null)
@@ -46,13 +54,15 @@ export default function TaskManagement() {
   const hasTasks = state.tasks.length > 0
   const sourceGroups = Array.from(new Set(state.tasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
   const rootTasks = state.tasks.filter((task) => !task.parentTaskId)
-  const visibleTasks = activeSourceGroup === '전체' ? rootTasks : rootTasks.filter((task) => task.sourceGroup === activeSourceGroup)
+  const registrationTasks = state.tasks.filter((task) => !task.isTaskGroup)
+  const viewTasks = activeView === 'register' ? registrationTasks : rootTasks
+  const visibleTasks = activeSourceGroup === '전체' ? viewTasks : viewTasks.filter((task) => task.sourceGroup === activeSourceGroup)
 
   function addTask() {
     const name = newForm.name.trim()
     if (!name) { setNewFormError('과제명을 입력하세요.'); return }
     if (state.tasks.some((task) => task.name === name)) { setNewFormError(`과제명 '${name}'은(는) 이미 존재합니다.`); return }
-    const task: Task = { id: uuidv4(), ...newForm, name, objective: newForm.objective.trim(), achievement: newForm.achievement.trim() }
+    const task: Task = { id: uuidv4(), ...newForm, name, objective: newForm.objective.trim(), achievement: newForm.achievement.trim(), assignees: newForm.assignees.split(',').map(value => value.trim()).filter(Boolean), source: 'manual' }
     dispatch({ type: 'ADD_TASK', payload: task })
     setRecentlyAddedIds((current) => new Set(current).add(task.id))
     setNewForm(EMPTY_TASK_FORM)
@@ -61,7 +71,7 @@ export default function TaskManagement() {
 
   function startEdit(task: Task) {
     setEditingTaskId(task.id)
-    setEditForm({ name: task.name, importance: task.importance, performanceGrade: task.performanceGrade, workload: task.workload, objective: task.objective, achievement: task.achievement })
+    setEditForm({ name: task.name, importance: task.importance, performanceGrade: task.performanceGrade, workload: task.workload, objective: task.objective, achievement: task.achievement, classification: task.classification ?? '일반', assignees: task.assignees?.join(', ') ?? '', startDate: task.startDate ?? '', endDate: task.endDate ?? '' })
     setEditFormError('')
   }
 
@@ -69,7 +79,7 @@ export default function TaskManagement() {
     const name = editForm.name.trim()
     if (!name) { setEditFormError('과제명을 입력하세요.'); return }
     if (state.tasks.some((item) => item.id !== task.id && item.name === name)) { setEditFormError(`과제명 '${name}'은(는) 이미 존재합니다.`); return }
-    dispatch({ type: 'UPDATE_TASK', payload: { ...task, ...editForm, name, objective: editForm.objective.trim(), achievement: editForm.achievement.trim() } })
+    dispatch({ type: 'UPDATE_TASK', payload: { ...task, ...editForm, name, objective: editForm.objective.trim(), achievement: editForm.achievement.trim(), assignees: editForm.assignees.split(',').map(value => value.trim()).filter(Boolean) } })
     setEditingTaskId(null)
     setEditFormError('')
   }
@@ -145,9 +155,10 @@ export default function TaskManagement() {
     <div className="ui-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5"><h3 className="text-lg font-semibold text-black">과제</h3><TitleHelp label="과제를 추가하거나 삭제하면 평가 매트릭스와 리포트에 즉시 반영됩니다." /></div>
-        <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-secondary">Google Sheets 가져오기</button><button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>
+        {activeView === 'register' && <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-secondary">Google Sheets 가져오기</button><button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>}
       </div>
-      {(!hasTasks || uploadOpen) && <FileDropZone
+      <div className="mt-5 flex border-b border-gray-200" role="tablist" aria-label="업적평가 과제 메뉴"><button type="button" role="tab" aria-selected={activeView === 'register'} onClick={() => { setActiveView('register'); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeView === 'register' ? 'ui-tab-active' : ''}`}>과제등록</button>{canManage && <button type="button" role="tab" aria-selected={activeView === 'manage'} onClick={() => { setActiveView('manage'); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeView === 'manage' ? 'ui-tab-active' : ''}`}>과제관리</button>}</div>
+      {activeView === 'register' && (!hasTasks || uploadOpen) && <FileDropZone
         title={hasTasks ? '과제 Excel 파일을 여기에 드래그' : '등록된 과제가 없습니다.'}
         description={hasTasks ? '과제명·과제등급·업무량·목표·성과·성과등급을 현재 평가에 반영합니다.' : '아래 입력 영역에서 직접 등록할 수 있습니다.\n또는\n이 영역을 클릭하거나 파일을 드래그하여 한 번에 등록할 수 있습니다.'}
         onClick={() => fileInputRef.current?.click()}
@@ -172,23 +183,23 @@ export default function TaskManagement() {
       <div>
       {sourceGroups.length > 0 && <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200" role="tablist" aria-label="A열 기준 과제 그룹">
         {['전체', ...sourceGroups].map((group) => {
-          const count = group === '전체' ? state.tasks.length : state.tasks.filter((task) => task.sourceGroup === group).length
+          const count = group === '전체' ? viewTasks.length : viewTasks.filter((task) => task.sourceGroup === group).length
           return <button key={group} type="button" role="tab" aria-selected={activeSourceGroup === group} onClick={() => { setActiveSourceGroup(group); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeSourceGroup === group ? 'ui-tab-active' : ''}`}>{group} <span className="ml-1 text-xs text-gray-400">{count}</span></button>
         })}
       </div>}
-      {selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><div><p className="text-sm font-medium text-orange-900">개별과제 {selectedTaskIds.size}개 선택됨</p><p className="mt-1 text-xs text-orange-700">선택한 과제를 팀장이 평가할 하나의 상위과제로 묶습니다.</p></div><button type="button" onClick={() => { setGroupingOpen(true); setGroupError('') }} disabled={selectedTaskIds.size < 2} className="ui-button ui-button-primary ui-button-sm">상위과제로 그룹핑</button></div>}
+      {activeView === 'manage' && selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><div><p className="text-sm font-medium text-orange-900">개별과제 {selectedTaskIds.size}개 선택됨</p><p className="mt-1 text-xs text-orange-700">선택한 과제를 팀장이 평가할 하나의 상위과제로 묶습니다.</p></div><button type="button" onClick={() => { setGroupingOpen(true); setGroupError('') }} disabled={selectedTaskIds.size < 2} className="ui-button ui-button-primary ui-button-sm">상위과제로 그룹핑</button></div>}
       <div className="ui-table-wrap">
         <table className="ui-table min-w-[1180px]">
           <thead>
             <tr>
-              <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="현재 탭 과제 전체 선택" checked={visibleTasks.length > 0 && visibleTasks.every((task) => selectedTaskIds.has(task.id))} onChange={toggleAllTasks} /></th>
+              {activeView === 'manage' && <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="현재 탭 과제 전체 선택" checked={visibleTasks.length > 0 && visibleTasks.every((task) => selectedTaskIds.has(task.id))} onChange={toggleAllTasks} /></th>}
               <th className="px-4 py-3 font-semibold">과제명</th>
               <th className="px-4 py-3 font-semibold">분류</th>
               <th className="px-4 py-3 font-semibold">담당자</th>
               <th className="px-4 py-3 font-semibold">기간</th>
-              <th className="px-4 py-3 font-semibold">과제등급</th>
-              <th className="px-4 py-3 font-semibold">성과등급</th>
-              <th className="px-4 py-3 font-semibold">업무량</th>
+              {state.criteria.taskGradeWeight > 0 && <th className="px-4 py-3 font-semibold">과제등급</th>}
+              {state.criteria.performanceGradeWeight > 0 && <th className="px-4 py-3 font-semibold">성과등급</th>}
+              {state.criteria.workloadWeight > 0 && <th className="px-4 py-3 font-semibold">업무량</th>}
               <th className="px-4 py-3 font-semibold">목표</th>
               <th className="px-4 py-3 font-semibold">성과</th>
               <th className="px-4 py-3 font-semibold">관리</th>
@@ -197,21 +208,21 @@ export default function TaskManagement() {
           <tbody>
             {visibleTasks.map((task) => editingTaskId === task.id ? (
               <tr key={task.id} className="border-t border-gray-200 bg-orange-50/30 text-black">
-                <td className="px-3 py-2 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>
+                {activeView === 'manage' && <td className="px-3 py-2 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>}
                 <td className="px-3 py-2"><input value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} className="ui-field ui-field-sm" />{editFormError && <p className="mt-1 text-xs text-danger">{editFormError}</p>}</td>
-                <td className="px-3 py-2 text-gray-600">{task.classification ?? '-'}</td>
-                <td className="px-3 py-2 text-gray-600">{task.assignees?.join(', ') || '-'}</td>
-                <td className="px-3 py-2 text-gray-600">{task.startDate || '-'} ~ {task.endDate || '-'}</td>
-                <td className="px-3 py-2"><select value={editForm.importance} disabled={state.criteria.taskGradeWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, importance: event.target.value as Importance }))} className="ui-field ui-field-sm disabled:bg-gray-100">{IMPORTANCE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
-                <td className="px-3 py-2"><select value={editForm.performanceGrade} disabled={state.criteria.performanceGradeWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field ui-field-sm disabled:bg-gray-100">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
-                <td className="px-3 py-2"><select value={editForm.workload} disabled={state.criteria.workloadWeight === 0} onChange={(event) => setEditForm((form) => ({ ...form, workload: event.target.value as Workload }))} className="ui-field ui-field-sm disabled:bg-gray-100">{WORKLOAD_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>
+                <td className="px-3 py-2"><select value={editForm.classification} onChange={event => setEditForm(form => ({ ...form, classification: event.target.value as '과제' | '일반' }))} className="ui-field ui-field-sm"><option>과제</option><option>일반</option></select></td>
+                <td className="px-3 py-2"><input value={editForm.assignees} onChange={event => setEditForm(form => ({ ...form, assignees: event.target.value }))} placeholder="쉼표로 구분" className="ui-field ui-field-sm" /></td>
+                <td className="px-3 py-2"><div className="flex gap-1"><input type="date" value={editForm.startDate} onChange={event => setEditForm(form => ({ ...form, startDate: event.target.value }))} className="ui-field ui-field-sm" /><input type="date" value={editForm.endDate} onChange={event => setEditForm(form => ({ ...form, endDate: event.target.value }))} className="ui-field ui-field-sm" /></div></td>
+                {state.criteria.taskGradeWeight > 0 && <td className="px-3 py-2"><select value={editForm.importance} onChange={(event) => setEditForm((form) => ({ ...form, importance: event.target.value as Importance }))} className="ui-field ui-field-sm">{IMPORTANCE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>}
+                {state.criteria.performanceGradeWeight > 0 && <td className="px-3 py-2"><select value={editForm.performanceGrade} onChange={(event) => setEditForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field ui-field-sm">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>}
+                {state.criteria.workloadWeight > 0 && <td className="px-3 py-2"><select value={editForm.workload} onChange={(event) => setEditForm((form) => ({ ...form, workload: event.target.value as Workload }))} className="ui-field ui-field-sm">{WORKLOAD_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></td>}
                 <td className="px-3 py-2"><input value={editForm.objective} onChange={(event) => setEditForm((form) => ({ ...form, objective: event.target.value }))} className="ui-field ui-field-sm" /></td>
                 <td className="px-3 py-2"><input value={editForm.achievement} onChange={(event) => setEditForm((form) => ({ ...form, achievement: event.target.value }))} className="ui-field ui-field-sm" /></td>
                 <td className="px-3 py-2"><div className="flex gap-1"><button type="button" onClick={() => saveEdit(task)} className="ui-button ui-button-primary ui-button-sm">저장</button><button type="button" onClick={() => setEditingTaskId(null)} className="ui-button ui-button-ghost ui-button-sm">취소</button></div></td>
               </tr>
             ) : (
               <tr key={task.id} className="border-t border-gray-200 text-black">
-                <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>
+                {activeView === 'manage' && <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>}
                 <td className="px-4 py-3 font-medium">
                   <span className="inline-flex items-center gap-1.5">
                     {task.name}
@@ -219,14 +230,14 @@ export default function TaskManagement() {
                       <Badge tone="accent">N</Badge>
                     )}
                   </span>
-                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">포함된 개별과제 {state.tasks.filter(child => child.parentTaskId === task.id).length}개</summary><ul className="mt-2 space-y-1 border-l-2 border-orange-200 pl-3 text-xs text-gray-600">{state.tasks.filter(child => child.parentTaskId === task.id).map(child => <li key={child.id}>{child.name}<span className="ml-2 text-gray-400">{child.assignees?.join(', ') || '담당자 미지정'}</span></li>)}</ul></details>}
+                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">포함된 개별과제 {state.tasks.filter(child => child.parentTaskId === task.id).length}개</summary><div className="mt-3 min-w-[760px] space-y-2 border-l-2 border-orange-200 pl-3">{state.tasks.filter(child => child.parentTaskId === task.id).map(child => <div key={child.id} className="grid grid-cols-[minmax(220px,2fr)_90px_minmax(150px,1fr)_140px_minmax(200px,2fr)] items-start gap-2 rounded-md bg-gray-50 p-2 text-xs"><div><p className="font-medium text-gray-900">{child.name}</p><button type="button" onClick={() => { setActiveView('register'); startEdit(child) }} className="mt-1 text-accent">기초정보 전체 수정</button></div><select value={child.classification ?? '일반'} onChange={event => dispatch({ type: 'UPDATE_TASK', payload: { ...child, classification: event.target.value as '과제' | '일반' } })} className="ui-field ui-field-sm"><option>과제</option><option>일반</option></select><input value={child.assignees?.join(', ') ?? ''} onChange={event => dispatch({ type: 'UPDATE_TASK', payload: { ...child, assignees: event.target.value.split(',').map(value => value.trim()).filter(Boolean) } })} placeholder="담당자" className="ui-field ui-field-sm" /><div className="space-y-1"><input type="date" value={child.startDate ?? ''} onChange={event => dispatch({ type: 'UPDATE_TASK', payload: { ...child, startDate: event.target.value } })} className="ui-field ui-field-sm" /><input type="date" value={child.endDate ?? ''} onChange={event => dispatch({ type: 'UPDATE_TASK', payload: { ...child, endDate: event.target.value } })} className="ui-field ui-field-sm" /></div><div className="flex flex-wrap gap-1">{state.members.map(member => { const contribution = state.contributions.find(item => item.taskId === child.id && item.memberId === member.id)?.contributionPercent ?? 0; return <label key={member.id} className="flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1"><span>{member.name}</span><input type="number" min={0} max={100} value={contribution || ''} onChange={event => dispatch({ type: 'SET_CONTRIBUTION_PERCENT', payload: { taskId: child.id, memberId: member.id, contributionPercent: Math.max(0, Math.min(100, Number(event.target.value) || 0)) } })} className="w-10 text-right outline-none" /><span>%</span></label> })}</div></div>)}</div></details>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{task.classification ?? '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{task.assignees?.join(', ') || '-'}</td>
                 <td className="px-4 py-3 text-gray-600"><span className="whitespace-nowrap">{task.startDate || '-'} ~ {task.endDate || '-'}</span>{task.dateNeedsReview && <span className="ml-2"><Badge tone="accent">확인 필요</Badge></span>}</td>
-                <td className={`px-4 py-3 ${state.criteria.taskGradeWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.taskGradeWeight === 0 ? '미사용' : task.importance}</td>
-                <td className={`px-4 py-3 ${state.criteria.performanceGradeWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.performanceGradeWeight === 0 ? '미사용' : task.performanceGrade}</td>
-                <td className={`px-4 py-3 ${state.criteria.workloadWeight === 0 ? 'text-gray-400' : ''}`}>{state.criteria.workloadWeight === 0 ? '미사용' : task.workload}</td>
+                {state.criteria.taskGradeWeight > 0 && <td className="px-4 py-3">{task.importance}</td>}
+                {state.criteria.performanceGradeWeight > 0 && <td className="px-4 py-3">{task.performanceGrade}</td>}
+                {state.criteria.workloadWeight > 0 && <td className="px-4 py-3">{task.workload}</td>}
                 <td className="px-4 py-3 text-gray-600">{task.objective || '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{task.achievement || '-'}</td>
                 <td className="px-4 py-3">
@@ -253,18 +264,21 @@ export default function TaskManagement() {
       </div>
       ) : null}
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr_2fr_2fr_auto]">
+      {activeView === 'register' && <section className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-black">과제명 <span className="text-danger">*</span><input value={newForm.name} onChange={(event) => setNewForm((form) => ({ ...form, name: event.target.value }))} placeholder="예: 신규 랜딩페이지 제작" className={`ui-field mt-1 ${newFormError && !newForm.name.trim() ? 'border-danger' : ''}`} /></label>
-          <label className="text-sm font-medium text-black">과제등급<select value={newForm.importance} disabled={state.criteria.taskGradeWeight === 0} onChange={(event) => setNewForm((form) => ({ ...form, importance: event.target.value as Importance }))} className="ui-field mt-1 disabled:bg-gray-100">{IMPORTANCE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label className="text-sm font-medium text-black">업무량<select value={newForm.workload} disabled={state.criteria.workloadWeight === 0} onChange={(event) => setNewForm((form) => ({ ...form, workload: event.target.value as Workload }))} className="ui-field mt-1 disabled:bg-gray-100">{WORKLOAD_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label className="text-sm font-medium text-black">성과등급<select value={newForm.performanceGrade} disabled={state.criteria.performanceGradeWeight === 0} onChange={(event) => setNewForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field mt-1 disabled:bg-gray-100">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="text-sm font-medium text-black">분류<select value={newForm.classification} onChange={event => setNewForm(form => ({ ...form, classification: event.target.value as '과제' | '일반' }))} className="ui-field mt-1"><option>과제</option><option>일반</option></select></label>
+          <label className="text-sm font-medium text-black">담당자<input value={newForm.assignees} onChange={event => setNewForm(form => ({ ...form, assignees: event.target.value }))} placeholder="여러 명은 쉼표로 구분" className="ui-field mt-1" /></label>
+          <div className="grid grid-cols-2 gap-2"><label className="text-sm font-medium text-black">시작일<input type="date" value={newForm.startDate} onChange={event => setNewForm(form => ({ ...form, startDate: event.target.value }))} className="ui-field mt-1" /></label><label className="text-sm font-medium text-black">종료일<input type="date" value={newForm.endDate} onChange={event => setNewForm(form => ({ ...form, endDate: event.target.value }))} className="ui-field mt-1" /></label></div>
+          {state.criteria.taskGradeWeight > 0 && <label className="text-sm font-medium text-black">과제등급<select value={newForm.importance} onChange={(event) => setNewForm((form) => ({ ...form, importance: event.target.value as Importance }))} className="ui-field mt-1">{IMPORTANCE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>}
+          {state.criteria.workloadWeight > 0 && <label className="text-sm font-medium text-black">업무량<select value={newForm.workload} onChange={(event) => setNewForm((form) => ({ ...form, workload: event.target.value as Workload }))} className="ui-field mt-1">{WORKLOAD_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>}
+          {state.criteria.performanceGradeWeight > 0 && <label className="text-sm font-medium text-black">성과등급<select value={newForm.performanceGrade} onChange={(event) => setNewForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field mt-1">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>}
           <label className="text-sm font-medium text-black">목표<input value={newForm.objective} onChange={(event) => setNewForm((form) => ({ ...form, objective: event.target.value }))} placeholder="예: 전환율 15% 개선 (선택)" className="ui-field mt-1" /></label>
           <label className="text-sm font-medium text-black">성과<input value={newForm.achievement} onChange={(event) => setNewForm((form) => ({ ...form, achievement: event.target.value }))} placeholder="예: 전환율 18% 달성 (선택)" className="ui-field mt-1" /></label>
-          <button type="button" onClick={addTask} className="ui-button ui-button-primary self-end whitespace-nowrap">+ 과제 추가</button>
+          <button type="button" onClick={addTask} className="ui-button ui-button-primary self-end justify-center whitespace-nowrap">+ 과제 등록</button>
         </div>
         {newFormError && <p className="mt-2 text-xs text-danger">{newFormError}</p>}
-      </section>
+      </section>}
 
       <ConfirmDialog
         open={deletingTask !== null}

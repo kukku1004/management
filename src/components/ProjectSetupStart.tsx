@@ -21,8 +21,10 @@ import FileDropZone from './FileDropZone'
 import Badge from './Badge'
 import ModalCloseButton from './ModalCloseButton'
 import PerformanceCommentSelector from './PerformanceCommentSelector'
+import GoogleSheetsTaskImportDialog from './GoogleSheetsTaskImportDialog'
+import type { GoogleSheetTaskImport } from '../utils/googleSheetsTasks'
 
-type StartMode = 'direct' | 'excel' | 'previous'
+type StartMode = 'sheets' | 'direct' | 'excel' | 'previous'
 type DirectTarget = 'tasks' | 'members'
 
 const QUICK_START_REMOVE_ICON = `${import.meta.env.BASE_URL}assets/quick-start-remove.svg`
@@ -87,7 +89,7 @@ function mergeNames(current: string[], additions: string[]) {
 export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: ProjectSetupStartProps) {
   const { state, dispatch } = useAppState()
   const { workspace, activeProject, activeTeam, saveGrowthProfile } = useWorkspace()
-  const [mode, setMode] = useState<StartMode>('direct')
+  const [mode, setMode] = useState<StartMode>('sheets')
   const [directTarget, setDirectTarget] = useState<DirectTarget>('tasks')
   const [draftInput, setDraftInput] = useState('')
   const [taskDrafts, setTaskDrafts] = useState<string[]>([])
@@ -103,6 +105,8 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
   const [excelUploadResults, setExcelUploadResults] = useState<ExcelUploadResult[]>([])
   const [uploadResultsOpen, setUploadResultsOpen] = useState(false)
   const [pendingPdfComments, setPendingPdfComments] = useState<PendingPdfComments[]>([])
+  const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
+  const [sheetsImportComplete, setSheetsImportComplete] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const excelInputRef = useRef<HTMLInputElement>(null)
   const isNameComposingRef = useRef(false)
@@ -170,6 +174,20 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
     setTaskDrafts([])
     setMemberDrafts([])
     setMessage(`과제 ${tasks.length}개, 팀원 ${members.length}명을 추가했습니다.`)
+  }
+
+  function handleSheetsImport(result: GoogleSheetTaskImport) {
+    dispatch({ type: 'IMPORT_TASKS', payload: result.tasks })
+    const existingNames = new Set(state.members.map((member) => normalizedName(member.name)))
+    const importedMembers: TeamMember[] = result.importedAssignees
+      .filter((name) => !existingNames.has(normalizedName(name)))
+      .map((name) => {
+        const knownMember = activeTeam?.members.find((member) => normalizedName(member.name) === normalizedName(name))
+        return knownMember ? { ...knownMember, active: true } : { id: uuidv4(), name, active: true, position: '', level: '', yearsOfService: null, role: '', comment: '' }
+      })
+    if (importedMembers.length > 0) dispatch({ type: 'IMPORT_MEMBERS', payload: [...state.members, ...importedMembers] })
+    setMessage(`L2 상위과제 ${result.selectedGroupCount}개와 하위과제를 가져왔습니다. 담당자 ${result.importedAssignees.length}명을 팀원 목록에 연결했습니다.`)
+    setSheetsImportComplete(true)
   }
 
   async function importExcelFiles(files: FileList | File[]) {
@@ -554,8 +572,8 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
         </div>
 
         <div className="flex shrink-0 overflow-x-auto border-b border-gray-200" role="tablist" aria-label="빠른 시작 방식">
-          {([['direct', '직접 입력', '선택한 영역에 이름을 빠르게 등록'], ['excel', 'Excel로 시작', '필요한 양식을 내려받고 일괄 등록'], ['previous', '이전 평가 가져오기', '팀과 평가기간을 골라 선택 복사']] as const).map(([value, label, description]) => (
-            <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => { setMode(value); setMessage(''); setPreviousImportComplete(false) }} className={`min-w-[180px] flex-1 border-b-2 px-0 py-3 text-left transition-colors ${mode === value ? 'border-accent' : 'border-transparent hover:bg-gray-50'}`}>
+          {([['sheets', 'Google Sheets 연동', 'L1·L2·L3 구조에서 필요한 과제 선택'], ['excel', 'Excel로 시작', '필요한 양식을 내려받고 일괄 등록'], ['previous', '이전 평가 가져오기', '팀과 평가기간을 골라 선택 복사'], ['direct', '직접 입력', '선택한 영역에 이름을 빠르게 등록']] as const).map(([value, label, description]) => (
+            <button key={value} type="button" role="tab" aria-selected={mode === value} onClick={() => { setMode(value); setMessage(''); setPreviousImportComplete(false); setSheetsImportComplete(false) }} className={`min-w-[180px] flex-1 border-b-2 px-0 py-3 text-left transition-colors ${mode === value ? 'border-accent' : 'border-transparent hover:bg-gray-50'}`}>
               <span className={`block text-sm font-semibold ${mode === value ? 'text-accent' : 'text-gray-950'}`}>{label}</span>
               <span className="mt-0.5 block truncate text-xs leading-5 text-gray-400">{description}</span>
             </button>
@@ -563,6 +581,10 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 pt-5">
+          {mode === 'sheets' && <section className="rounded-lg border border-gray-200 bg-white p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="ui-section-title">Google Sheets에서 과제 가져오기</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">`2026 추진현황`의 L1을 탭으로 나누고, 팀장이 선택한 L2 상위과제와 포함된 L3 하위과제만 가져옵니다. 과제 담당자는 팀원 목록에 자동 연결됩니다.</p></div><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-primary">Google Sheets 연결 및 과제 선택</button></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L1</p><p className="mt-1 text-sm font-medium text-gray-900">업무 영역 탭</p></div><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L2</p><p className="mt-1 text-sm font-medium text-gray-900">선택할 상위과제</p></div><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L3</p><p className="mt-1 text-sm font-medium text-gray-900">포함되는 하위과제</p></div></div>
+          </section>}
           {mode === 'direct' && <div>
             <div className="grid gap-3 sm:grid-cols-2">
               {renderDraftPanel('tasks', '과제', taskDrafts)}
@@ -713,8 +735,10 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
             className="ui-button ui-button-primary shrink-0"
           >평가 시작하기</button>
         </div>}
+        {mode === 'sheets' && sheetsImportComplete && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className="text-sm text-gray-500">가져온 과제와 담당자로 평가를 계속할 수 있습니다.</p><button type="button" onClick={() => { if (onStartEvaluation) onStartEvaluation(); else onClose() }} className="ui-button ui-button-primary shrink-0">평가 시작하기</button></div>}
         {mode === 'previous' && sourceProject && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={copyCriteria} onChange={(event) => { setCopyCriteria(event.target.checked); setPreviousImportComplete(false) }} /> 평가기준도 가져오기</label><button type="button" onClick={previousImportComplete ? onClose : copyPreviousProject} disabled={!previousImportComplete && selectedTaskIds.length === 0 && selectedMemberIds.length === 0 && !copyCriteria} className={`ui-button ui-button-primary shrink-0 ${previousImportComplete ? 'quick-start-complete' : ''}`}>{previousImportComplete ? '시작하기' : '선택 항목 가져오기'}</button></div>}
       </div>
+      {sheetsImportOpen && <GoogleSheetsTaskImportDialog tasks={state.tasks} onImport={handleSheetsImport} onClose={() => setSheetsImportOpen(false)} />}
     </div>
   )
 }

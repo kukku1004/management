@@ -53,10 +53,11 @@ export default function TaskManagement() {
   const [registrationLevel, setRegistrationLevel] = useState<'L2' | 'L3'>('L3')
   const [newParentTaskId, setNewParentTaskId] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const hasTasks = state.tasks.length > 0
-  const sourceGroups = Array.from(new Set(state.tasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
-  const rootTasks = state.tasks.filter((task) => !task.parentTaskId)
-  const registrationTasks = state.tasks.filter((task) => !task.isTaskGroup)
+  const currentTasks = state.tasks.filter((task) => !task.excludedFromCurrentEvaluation)
+  const hasTasks = currentTasks.length > 0
+  const sourceGroups = Array.from(new Set(currentTasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
+  const rootTasks = currentTasks.filter((task) => !task.parentTaskId)
+  const registrationTasks = currentTasks.filter((task) => !task.isTaskGroup)
   const viewTasks = activeView === 'register' ? registrationTasks : rootTasks
   const visibleTasks = activeSourceGroup === '전체' ? viewTasks : viewTasks.filter((task) => task.sourceGroup === activeSourceGroup)
 
@@ -185,7 +186,7 @@ export default function TaskManagement() {
           }}
         />
       )}
-      {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">L2 상위과제 {sheetsFeedback.selectedGroupCount}개를 선택해 과제 {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신했습니다. 담당자 {sheetsFeedback.importedAssignees.length}명을 팀원 목록에 연결했습니다.</div>}
+      {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">L2 상위과제 {sheetsFeedback.selectedGroupCount}개와 포함된 L3만 현재 평가에 표시합니다. {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신, 미선택 기존 과제 {sheetsFeedback.hiddenCount}건은 데이터 보존 상태로 숨겼습니다.</div>}
 
       {hasTasks ? (
       <div>
@@ -238,7 +239,7 @@ export default function TaskManagement() {
                       <Badge tone="accent">N</Badge>
                     )}
                   </span>
-                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">하위과제 {state.tasks.filter(child => child.parentTaskId === task.id).length}개</summary><ul className="mt-2 space-y-1 border-l-2 border-orange-200 pl-3 text-xs text-gray-600">{state.tasks.filter(child => child.parentTaskId === task.id).map(child => <li key={child.id}><span className="text-gray-900">{child.name}</span>{child.assignees?.length ? <span className="ml-2 text-gray-400">{child.assignees.join(', ')}</span> : null}</li>)}</ul></details>}
+                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">하위과제 {currentTasks.filter(child => child.parentTaskId === task.id).length}개</summary><ul className="mt-2 space-y-1 border-l-2 border-orange-200 pl-3 text-xs text-gray-600">{currentTasks.filter(child => child.parentTaskId === task.id).map(child => <li key={child.id}><span className="text-gray-900">{child.name}</span>{child.assignees?.length ? <span className="ml-2 text-gray-400">{child.assignees.join(', ')}</span> : null}</li>)}</ul></details>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{task.classification ?? '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{task.assignees?.join(', ') || '-'}</td>

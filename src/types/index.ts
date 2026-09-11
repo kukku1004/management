@@ -30,6 +30,7 @@ export interface Task {
   sourceLevel2?: string
   parentTaskId?: string
   isTaskGroup?: boolean
+  excludedFromCurrentEvaluation?: boolean
 }
 
 export interface TeamMember {

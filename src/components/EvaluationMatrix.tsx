@@ -26,7 +26,7 @@ const MEMBER_MIN_WIDTH = 260
 export default function EvaluationMatrix() {
   const { state, dispatch } = useAppState()
   const { members, contributions, criteria } = state
-  const tasks = state.tasks.filter((task) => !task.isTaskGroup)
+  const tasks = state.tasks.filter((task) => !task.isTaskGroup && !task.excludedFromCurrentEvaluation)
   const [detail, setDetail] = useState<{ taskId: string; memberId: string } | null>(null)
   const [rankingOpen, setRankingOpen] = useState(true)
   const [taskWidth, setTaskWidth] = useState(260)

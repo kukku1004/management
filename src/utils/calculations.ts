@@ -66,7 +66,7 @@ export interface TaskScoreRow {
 }
 
 export function calcAllTaskScores(tasks: Task[], criteria: Criteria): TaskScoreRow[] {
-  return tasks.filter((task) => !task.isTaskGroup).map((task) => ({ task, score: calcTaskScore(task, criteria) }))
+  return tasks.filter((task) => !task.isTaskGroup && !task.excludedFromCurrentEvaluation).map((task) => ({ task, score: calcTaskScore(task, criteria) }))
 }
 
 export function getContribution(
@@ -183,7 +183,7 @@ export function calcMemberParticipation(
   contributions: Contribution[],
   criteria?: Criteria,
 ): { count: number; totalShare: number } {
-  const evaluationTasks = tasks.filter((task) => !task.isTaskGroup)
+  const evaluationTasks = tasks.filter((task) => !task.isTaskGroup && !task.excludedFromCurrentEvaluation)
   const memberTasks = evaluationTasks.filter((task) => !task.assignees?.length || task.assignees.some((name) => name.trim() === member.name.trim()))
   if (criteria?.contributionWeight === 0) return { count: memberTasks.length, totalShare: memberTasks.length }
   let count = 0

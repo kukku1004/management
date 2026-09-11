@@ -8,7 +8,7 @@ const SOURCE_START_ROW = 3
 interface SheetValuesResponse { values?: unknown[][] }
 export interface GoogleSheetTaskCandidate { key: string; level1: string; level2: string; children: Task[] }
 export interface GoogleSheetTaskPreview { spreadsheetId: string; groups: GoogleSheetTaskCandidate[]; skippedCount: number; reviewCount: number }
-export interface GoogleSheetTaskImport { tasks: Task[]; addedCount: number; updatedCount: number; skippedCount: number; reviewCount: number; selectedGroupCount: number; importedAssignees: string[] }
+export interface GoogleSheetTaskImport { tasks: Task[]; addedCount: number; updatedCount: number; hiddenCount: number; skippedCount: number; reviewCount: number; selectedGroupCount: number; importedAssignees: string[] }
 
 function spreadsheetIdFromUrl(url: string) { const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/); if (!match) throw new Error('올바른 Google Sheets 링크를 입력하세요.'); return match[1] }
 function cell(row: unknown[], index: number) { const value = row[index]; return value == null ? '' : String(value).trim() }
@@ -38,15 +38,18 @@ export async function loadGoogleSheetTaskPreview(url: string): Promise<GoogleShe
 }
 
 export function importSelectedGoogleSheetGroups(preview: GoogleSheetTaskPreview, selectedKeys: Set<string>, existing: Task[]): GoogleSheetTaskImport {
-  const next = [...existing]; let addedCount = 0; let updatedCount = 0
+  const next = existing.map((task) => task.source === 'google-sheets' && task.sourceSpreadsheetId === preview.spreadsheetId ? { ...task, excludedFromCurrentEvaluation: true } : task)
+  let addedCount = 0; let updatedCount = 0
   preview.groups.filter((group) => selectedKeys.has(group.key)).forEach((group) => {
     const existingParent = next.find((task) => task.isTaskGroup && task.source === 'google-sheets' && task.sourceSpreadsheetId === preview.spreadsheetId && task.sourceLevel1 === group.level1 && task.sourceLevel2 === group.level2)
     const parentId = existingParent?.id ?? uuidv4()
-    if (!existingParent) { next.push({ id: parentId, name: group.level2, importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '', classification: '과제', assignees: [], source: 'google-sheets', sourceSpreadsheetId: preview.spreadsheetId, sourceSheetName: SOURCE_SHEET, sourceGroup: group.level1, sourceLevel1: group.level1, sourceLevel2: group.level2, isTaskGroup: true }); addedCount += 1 }
-    group.children.forEach((candidate) => { const foundIndex = next.findIndex((task) => task.source === 'google-sheets' && task.sourceSpreadsheetId === preview.spreadsheetId && task.sourceRow === candidate.sourceRow); if (foundIndex >= 0) { next[foundIndex] = { ...next[foundIndex], ...candidate, id: next[foundIndex].id, parentTaskId: parentId }; updatedCount += 1 } else { next.push({ ...candidate, parentTaskId: parentId }); addedCount += 1 } })
-    const parentIndex = next.findIndex((task) => task.id === parentId); const children = next.filter((task) => task.parentTaskId === parentId); const starts = children.flatMap((task) => task.startDate ? [task.startDate] : []).sort(); const ends = children.flatMap((task) => task.endDate ? [task.endDate] : []).sort()
+    if (!existingParent) { next.push({ id: parentId, name: group.level2, importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '', classification: '과제', assignees: [], source: 'google-sheets', sourceSpreadsheetId: preview.spreadsheetId, sourceSheetName: SOURCE_SHEET, sourceGroup: group.level1, sourceLevel1: group.level1, sourceLevel2: group.level2, isTaskGroup: true, excludedFromCurrentEvaluation: false }); addedCount += 1 }
+    else { const parentIndex = next.findIndex((task) => task.id === parentId); next[parentIndex] = { ...next[parentIndex], excludedFromCurrentEvaluation: false }; updatedCount += 1 }
+    group.children.forEach((candidate) => { const foundIndex = next.findIndex((task) => task.source === 'google-sheets' && task.sourceSpreadsheetId === preview.spreadsheetId && task.sourceRow === candidate.sourceRow); if (foundIndex >= 0) { next[foundIndex] = { ...next[foundIndex], ...candidate, id: next[foundIndex].id, parentTaskId: parentId, excludedFromCurrentEvaluation: false }; updatedCount += 1 } else { next.push({ ...candidate, parentTaskId: parentId, excludedFromCurrentEvaluation: false }); addedCount += 1 } })
+    const parentIndex = next.findIndex((task) => task.id === parentId); const children = next.filter((task) => task.parentTaskId === parentId && !task.excludedFromCurrentEvaluation); const starts = children.flatMap((task) => task.startDate ? [task.startDate] : []).sort(); const ends = children.flatMap((task) => task.endDate ? [task.endDate] : []).sort()
     next[parentIndex] = { ...next[parentIndex], assignees: [...new Set(children.flatMap((task) => task.assignees ?? []))], startDate: starts[0], endDate: ends[ends.length - 1] }
   })
   const importedAssignees = [...new Set(preview.groups.filter((group) => selectedKeys.has(group.key)).flatMap((group) => group.children.flatMap((task) => task.assignees ?? [])))]
-  return { tasks: next, addedCount, updatedCount, skippedCount: preview.skippedCount, reviewCount: preview.reviewCount, selectedGroupCount: selectedKeys.size, importedAssignees }
+  const hiddenCount = next.filter((task) => task.source === 'google-sheets' && task.sourceSpreadsheetId === preview.spreadsheetId && task.excludedFromCurrentEvaluation).length
+  return { tasks: next, addedCount, updatedCount, hiddenCount, skippedCount: preview.skippedCount, reviewCount: preview.reviewCount, selectedGroupCount: selectedKeys.size, importedAssignees }
 }

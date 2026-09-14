@@ -71,17 +71,12 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
   const hasTasks = currentTasks.length > 0
   const sourceGroups = Array.from(new Set(currentTasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
   const rootTasks = currentTasks.filter((task) => !task.parentTaskId)
-  const managementTasks = rootTasks.flatMap((task) => task.isTaskGroup
-    ? [task, ...currentTasks.filter((child) => child.parentTaskId === task.id)]
-    : [task])
   const sourceFilteredRoots = activeSourceGroup === '전체' ? rootTasks : rootTasks.filter((task) => task.sourceGroup === activeSourceGroup)
   const l2Tasks = sourceFilteredRoots.filter((task) => task.isTaskGroup)
   const sourceFilteredL3Tasks = currentTasks.filter((task) => !task.isTaskGroup && (activeSourceGroup === '전체' || task.sourceGroup === activeSourceGroup))
   const effectiveL2Id = activeL2Id === 'all' || l2Tasks.some((task) => task.id === activeL2Id) ? activeL2Id : 'all'
   const registrationTasks = effectiveL2Id === 'all' ? sourceFilteredL3Tasks : sourceFilteredL3Tasks.filter((task) => task.parentTaskId === effectiveL2Id)
-  const visibleTasks = activeView === 'register'
-    ? registrationTasks
-    : (activeSourceGroup === '전체' ? managementTasks : managementTasks.filter((task) => task.sourceGroup === activeSourceGroup))
+  const visibleTasks = registrationTasks
   const selectableVisibleTasks = visibleTasks.filter((task) => !task.isTaskGroup)
 
   useEffect(() => {
@@ -270,7 +265,7 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
       {hasTasks ? (
       <div>
       {(sourceGroups.length > 0 || (activeView === 'register' && canManage)) && <div className="mb-3 flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-sm font-medium text-gray-700"><span className="shrink-0">L1 분야</span><select value={activeSourceGroup} onChange={(event) => { setActiveSourceGroup(event.target.value); setActiveL2Id('all'); setSelectedTaskIds(new Set()) }} className="ui-field ui-field-sm w-64"><option value="전체">전체 ({rootTasks.length})</option>{sourceGroups.map((group) => <option key={group} value={group}>{group} ({rootTasks.filter((task) => task.sourceGroup === group).length})</option>)}</select></label>{activeView === 'register' && canManage && selectedTaskIds.size > 0 && <span className="text-xs text-gray-500">L3 {selectedTaskIds.size}개 선택 · 우클릭하여 L2로 이동</span>}</div>}
-      {activeView === 'register' && <div className="mb-3 flex items-end justify-between gap-3 border-b border-gray-200"><div className="flex min-w-0 flex-1 flex-wrap items-end gap-1" role="tablist" aria-label="L2 상위과제"><button type="button" role="tab" aria-selected={effectiveL2Id === 'all'} onClick={() => setActiveL2Id('all')} className={`ui-tab rounded-b-none ${effectiveL2Id === 'all' ? 'ui-tab-active' : ''}`}>전체 L3 <span className="ml-1 text-xs opacity-60">{sourceFilteredL3Tasks.length}</span></button>{l2Tasks.map((task) => <button key={task.id} type="button" role="tab" aria-selected={effectiveL2Id === task.id} onClick={() => { setActiveL2Id(task.id); setNewParentTaskId(task.id) }} className={`ui-tab max-w-72 rounded-b-none ${effectiveL2Id === task.id ? 'ui-tab-active' : ''}`}><span className="block truncate">{task.name} <span className="ml-1 text-xs opacity-60">{sourceFilteredL3Tasks.filter((child) => child.parentTaskId === task.id).length}</span></span></button>)}{canManage && <button type="button" onClick={() => openTaskForm('L2')} aria-label="L2 상위과제 추가" title="L2 상위과제 추가" className="mb-1 flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-lg text-gray-600 hover:border-orange-300 hover:text-accent">+</button>}</div>{effectiveL2Id !== 'all' && <button type="button" onClick={() => openTaskForm('L3', effectiveL2Id)} className="ui-button ui-button-secondary ui-button-sm mb-1 shrink-0">+ L3 과제 등록</button>}</div>}
+      <div className="mb-3 flex items-end justify-between gap-3 border-b border-gray-200"><div className="flex min-w-0 flex-1 flex-wrap items-end gap-1" role="tablist" aria-label="L2 상위과제"><button type="button" role="tab" aria-selected={effectiveL2Id === 'all'} onClick={() => setActiveL2Id('all')} className={`ui-tab rounded-b-none ${effectiveL2Id === 'all' ? 'ui-tab-active' : ''}`}>전체 L3 <span className="ml-1 text-xs opacity-60">{sourceFilteredL3Tasks.length}</span></button>{l2Tasks.map((task) => <button key={task.id} type="button" role="tab" aria-selected={effectiveL2Id === task.id} onClick={() => { setActiveL2Id(task.id); setNewParentTaskId(task.id) }} className={`ui-tab max-w-72 rounded-b-none ${effectiveL2Id === task.id ? 'ui-tab-active' : ''}`}><span className="block truncate">{task.name} <span className="ml-1 text-xs opacity-60">{sourceFilteredL3Tasks.filter((child) => child.parentTaskId === task.id).length}</span></span></button>)}{activeView === 'register' && canManage && <button type="button" onClick={() => openTaskForm('L2')} aria-label="L2 상위과제 추가" title="L2 상위과제 추가" className="mb-1 flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-lg text-gray-600 hover:border-orange-300 hover:text-accent">+</button>}</div>{activeView === 'register' && effectiveL2Id !== 'all' && <button type="button" onClick={() => openTaskForm('L3', effectiveL2Id)} className="ui-button ui-button-secondary ui-button-sm mb-1 shrink-0">+ L3 과제 등록</button>}</div>
       <div className="ui-table-wrap">
         <table className="ui-table min-w-[1180px]">
           <thead>

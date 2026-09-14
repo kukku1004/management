@@ -65,8 +65,12 @@ export default function TaskManagement() {
   const sourceGroups = Array.from(new Set(currentTasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
   const rootTasks = currentTasks.filter((task) => !task.parentTaskId)
   const registrationTasks = currentTasks.filter((task) => !task.isTaskGroup)
-  const viewTasks = activeView === 'register' ? registrationTasks : rootTasks
+  const managementTasks = rootTasks.flatMap((task) => task.isTaskGroup
+    ? [task, ...currentTasks.filter((child) => child.parentTaskId === task.id)]
+    : [task])
+  const viewTasks = activeView === 'register' ? registrationTasks : managementTasks
   const visibleTasks = activeSourceGroup === '전체' ? viewTasks : viewTasks.filter((task) => task.sourceGroup === activeSourceGroup)
+  const selectableVisibleTasks = visibleTasks.filter((task) => !task.isTaskGroup)
 
   function addTask() {
     const name = newForm.name.trim()
@@ -116,9 +120,9 @@ export default function TaskManagement() {
 
   function toggleAllTasks() {
     setSelectedTaskIds((current) => {
-      const allVisibleSelected = visibleTasks.length > 0 && visibleTasks.every((task) => current.has(task.id))
+      const allVisibleSelected = selectableVisibleTasks.length > 0 && selectableVisibleTasks.every((task) => current.has(task.id))
       const next = new Set(current)
-      visibleTasks.forEach((task) => allVisibleSelected ? next.delete(task.id) : next.add(task.id))
+      selectableVisibleTasks.forEach((task) => allVisibleSelected ? next.delete(task.id) : next.add(task.id))
       return next
     })
   }
@@ -220,7 +224,7 @@ export default function TaskManagement() {
         <table className="ui-table min-w-[1180px]">
           <thead>
             <tr>
-              {activeView === 'manage' && <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="현재 탭 과제 전체 선택" checked={visibleTasks.length > 0 && visibleTasks.every((task) => selectedTaskIds.has(task.id))} onChange={toggleAllTasks} /></th>}
+              {activeView === 'manage' && <th className="w-12 px-3 py-3 text-center"><input type="checkbox" aria-label="현재 탭 과제 전체 선택" checked={selectableVisibleTasks.length > 0 && selectableVisibleTasks.every((task) => selectedTaskIds.has(task.id))} onChange={toggleAllTasks} /></th>}
               <th className="px-4 py-3 font-semibold">과제명</th>
               <th className="px-4 py-3 font-semibold">분류</th>
               <th className="px-4 py-3 font-semibold">담당자</th>
@@ -234,7 +238,14 @@ export default function TaskManagement() {
             </tr>
           </thead>
           <tbody>
-            {visibleTasks.map((task) => editingTaskId === task.id ? (
+            {visibleTasks.map((task) => task.isTaskGroup ? (
+              <tr key={task.id} className="border-t border-gray-300 bg-gray-50 text-black">
+                {activeView === 'manage' && <td className="px-3 py-3" />}
+                <td colSpan={7 + Number(state.criteria.taskGradeWeight > 0) + Number(state.criteria.performanceGradeWeight > 0) + Number(state.criteria.workloadWeight > 0)} className="px-4 py-3">
+                  <div className="flex items-center justify-between gap-4"><div><span className="text-xs font-semibold text-accent">L2 상위과제</span><strong className="ml-3 text-sm text-gray-950">{task.name}</strong><span className="ml-2 text-xs text-gray-500">하위과제 {currentTasks.filter((child) => child.parentTaskId === task.id).length}개</span></div><div className="flex gap-2"><button type="button" onClick={() => startEdit(task)} className="ui-button ui-button-secondary ui-button-sm">상위과제명 수정</button><button type="button" onClick={() => setDeletingTask(task)} className="ui-button ui-button-danger ui-button-sm">그룹 해제</button></div></div>
+                </td>
+              </tr>
+            ) : editingTaskId === task.id ? (
               <tr key={task.id} className="border-t border-gray-200 bg-orange-50/30 text-black">
                 {activeView === 'manage' && <td className="px-3 py-2 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>}
                 <td className="px-3 py-2"><input value={editForm.name} onChange={(event) => setEditForm((form) => ({ ...form, name: event.target.value }))} className="ui-field ui-field-sm" />{editFormError && <p className="mt-1 text-xs text-danger">{editFormError}</p>}</td>
@@ -251,14 +262,14 @@ export default function TaskManagement() {
             ) : (
               <tr key={task.id} className="border-t border-gray-200 text-black">
                 {activeView === 'manage' && <td className="px-3 py-3 text-center"><input type="checkbox" aria-label={`${task.name} 선택`} checked={selectedTaskIds.has(task.id)} onChange={() => toggleTaskSelection(task.id)} /></td>}
-                <td className="px-4 py-3 font-medium">
+                <td className={`px-4 py-3 font-medium ${task.parentTaskId ? 'pl-8' : ''}`}>
                   <span className="inline-flex items-center gap-1.5">
+                    {task.parentTaskId && <span className="text-xs font-semibold text-accent">L3</span>}
                     {task.name}
                     {recentlyAddedIds.has(task.id) && (
                       <Badge tone="accent">N</Badge>
                     )}
                   </span>
-                  {task.isTaskGroup && <details className="mt-2 font-normal"><summary className="cursor-pointer text-xs font-medium text-accent">하위과제 {currentTasks.filter(child => child.parentTaskId === task.id).length}개</summary><ul className="mt-2 space-y-1 border-l-2 border-orange-200 pl-3 text-xs text-gray-600">{currentTasks.filter(child => child.parentTaskId === task.id).map(child => <li key={child.id}><span className="text-gray-900">{child.name}</span>{child.assignees?.length ? <span className="ml-2 text-gray-400">{child.assignees.join(', ')}</span> : null}</li>)}</ul></details>}
                 </td>
                 <td className="px-4 py-3 text-gray-600">{task.classification ?? '-'}</td>
                 <td className="px-4 py-3 text-gray-600">{task.assignees?.join(', ') || '-'}</td>

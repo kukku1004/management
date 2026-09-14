@@ -308,7 +308,7 @@ export function createFullBackupWorkbook(state: AppState, periodName: string, gr
       [periodName, '과제등급', state.criteria.taskGradeWeight > 0 ? '사용' : '미사용', state.criteria.taskGradeWeight, '중점 1.3 / 핵심 1.1 / 일반 1.0 / 지원 0.8'],
       [periodName, '업무량', state.criteria.workloadWeight > 0 ? '사용' : '미사용', state.criteria.workloadWeight, '대 1.2 / 중 1.0 / 소 0.8'],
       [periodName, '개인 수행등급', state.criteria.personalGradeWeight > 0 ? '사용' : '미사용', state.criteria.personalGradeWeight, 'S 1.5 / A 1.2 / B 1.0 / C 0.8 / D 0.6'],
-      [periodName, '피어리뷰', state.criteria.peerReviewWeight > 0 ? '사용' : '미사용', state.criteria.peerReviewWeight, '수신 등급 평균을 적용'],
+      [periodName, '피어리뷰', state.criteria.peerReviewWeight > 0 ? '사용' : '미사용', state.criteria.peerReviewWeight, '팀원 상대순위 환산점수 평균을 적용'],
       [periodName, '최종 고과 배분', '상대평가', 100, `S ${state.criteria.gradeSPercent}% / A ${state.criteria.gradeAPercent}% / B ${state.criteria.gradeBPercent}% / C ${state.criteria.gradeCPercent}% / D ${state.criteria.gradeDPercent}%`],
       [periodName, '기여도', '필수', 100, '과제별 합계 100%'],
     ],

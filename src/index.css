@@ -4,8 +4,8 @@
 
 /* 빠른 시작은 탭과 업로드 결과에 따라 본체 크기가 변하지 않는다. */
 .quick-start-modal {
-  width: min(960px, calc(100vw - 32px)) !important;
-  height: min(680px, calc(100dvh - 32px));
+  width: min(1200px, calc(100vw - 32px)) !important;
+  height: min(760px, calc(100dvh - 32px));
   max-width: none !important;
   max-height: none !important;
   margin: 0;
@@ -14,11 +14,11 @@
 .quick-start-upload-drawer {
   position: fixed;
   top: 50%;
-  left: calc(50% + 492px);
+  left: calc(50% + 612px);
   z-index: 80;
   display: flex;
   width: 320px;
-  max-height: min(680px, calc(100dvh - 32px));
+  max-height: min(760px, calc(100dvh - 32px));
   flex-direction: column;
   overflow: hidden;
   border: 1px solid #e5e7eb;

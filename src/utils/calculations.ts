@@ -169,11 +169,23 @@ export function calcPeerReviewFactor(
   criteria: Criteria,
 ): number {
   if (criteria.peerReviewWeight <= 0) return 1
-  const receivedGrades = peerReviews
-    .filter((review) => review.targetMemberId === memberId && review.reviewerMemberId !== memberId && review.grade)
-    .map((review) => PERFORMANCE_SCORE[review.grade!])
-  if (receivedGrades.length === 0) return 1
-  const averageFactor = receivedGrades.reduce((sum, score) => sum + score, 0) / receivedGrades.length / 100
+  const receivedScores = peerReviews
+    .filter((review) => review.targetMemberId === memberId && review.reviewerMemberId !== memberId)
+    .map((review) => {
+      if (review.rank && review.rank > 0) {
+        const ballotSize = Math.max(
+          review.rank,
+          ...peerReviews
+            .filter((item) => item.reviewerMemberId === review.reviewerMemberId && item.rank && item.rank > 0)
+            .map((item) => item.rank ?? 0),
+        )
+        return ballotSize <= 1 ? 100 : 100 - ((review.rank - 1) / (ballotSize - 1)) * 40
+      }
+      return review.grade ? PERFORMANCE_SCORE[review.grade] : null
+    })
+    .filter((score): score is number => score !== null)
+  if (receivedScores.length === 0) return 1
+  const averageFactor = receivedScores.reduce((sum, score) => sum + score, 0) / receivedScores.length / 100
   return blendByWeight(1, averageFactor, criteria.peerReviewWeight)
 }
 

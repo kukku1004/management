@@ -52,7 +52,7 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
     if (!embedded) onClose?.()
   }
 
-  const content = <div className={embedded ? 'w-full' : 'w-full max-w-5xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl'}>
+  const content = <div className={embedded ? 'w-full' : 'max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[1440px] overflow-y-auto rounded-xl border border-gray-200 bg-white p-6 shadow-xl'}>
     <div className="flex items-start justify-between gap-4">
       <div><h2 className={embedded ? 'ui-section-title' : 'text-lg font-semibold text-gray-950'}>Google Sheets 과제 선택</h2><p className="mt-1 text-sm text-gray-500">L1 탭에서 L2 상위과제를 선택하면 포함된 L3 과제와 담당자만 가져옵니다.</p></div>
       {!embedded && <button type="button" onClick={onClose} className="ui-button ui-button-ghost ui-button-sm">닫기</button>}

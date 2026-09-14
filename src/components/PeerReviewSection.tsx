@@ -52,7 +52,7 @@ export default function PeerReviewSection() {
   return <div className="space-y-6">
     <section className="border-b border-gray-200 pb-5">
       <h2 className="ui-page-title">팀원 피어리뷰</h2>
-      <p className="mt-1 text-sm text-gray-500">과제와 무관하게 함께 일한 팀원의 상대 순위를 정하고, 판단 근거를 작성합니다. 순위는 성과점수에 자동 반영되지 않습니다.</p>
+      <p className="mt-1 text-sm text-gray-500">과제와 무관하게 함께 일한 팀원의 상대 순위를 정하고, 판단 근거를 작성합니다. 순위는 피어리뷰 반영 비율에 따라 성과점수에 자동 반영됩니다.</p>
       <label className="mt-4 block max-w-sm text-sm font-medium text-gray-900">리뷰어<select value={reviewerId} onChange={(event) => selectReviewer(event.target.value)} className="ui-field mt-2">{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
     </section>
 

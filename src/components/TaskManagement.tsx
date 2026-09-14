@@ -62,11 +62,11 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
   const [activeL2Id, setActiveL2Id] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const [registrationLevel, setRegistrationLevel] = useState<'L2' | 'L3'>('L3')
+  const [taskFormOpen, setTaskFormOpen] = useState(false)
   const [newParentTaskId, setNewParentTaskId] = useState('')
   const [exportingSheet, setExportingSheet] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const taskFormSectionRef = useRef<HTMLElement>(null)
   const currentTasks = state.tasks.filter((task) => !task.excludedFromCurrentEvaluation)
   const hasTasks = currentTasks.length > 0
   const sourceGroups = Array.from(new Set(currentTasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
@@ -112,6 +112,7 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
     setRecentlyAddedIds((current) => new Set(current).add(task.id))
     setNewForm(EMPTY_TASK_FORM)
     setNewFormError('')
+    setTaskFormOpen(false)
   }
 
   function startEdit(task: Task) {
@@ -218,7 +219,9 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
   function openTaskForm(level: 'L2' | 'L3', parentTaskId = '') {
     setRegistrationLevel(level)
     setNewParentTaskId(parentTaskId)
-    window.requestAnimationFrame(() => taskFormSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+    setNewForm(EMPTY_TASK_FORM)
+    setNewFormError('')
+    setTaskFormOpen(true)
   }
 
   async function exportGoogleSheet() {
@@ -349,10 +352,11 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
       </div>
       ) : null}
 
-      {activeView === 'register' && <section ref={taskFormSectionRef} className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
-        <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-gray-100 pb-4">{canManage && <label className="text-sm font-medium text-black">등록 레벨<select value={registrationLevel} onChange={(event) => { setRegistrationLevel(event.target.value as 'L2' | 'L3'); setNewParentTaskId('') }} className="ui-field mt-1 w-48"><option value="L2">L2 상위과제</option><option value="L3">L3 하위과제</option></select></label>}{registrationLevel === 'L3' && <label className="min-w-72 flex-1 text-sm font-medium text-black">소속 L2 상위과제<select value={newParentTaskId} onChange={(event) => setNewParentTaskId(event.target.value)} className="ui-field mt-1"><option value="">{rootTasks.some((task) => task.isTaskGroup) ? '상위과제 선택' : '등록된 상위과제 없음'}</option>{rootTasks.filter((task) => task.isTaskGroup).map((task) => <option key={task.id} value={task.id}>{task.sourceLevel1 ? `${task.sourceLevel1} / ` : ''}{task.name}</option>)}</select></label>}</div>
+      {taskFormOpen && activeView === 'register' && <div className="ui-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="task-form-title" onMouseDown={(event) => { if (event.target === event.currentTarget) setTaskFormOpen(false) }}><section className={`ui-modal-panel ${registrationLevel === 'L2' ? 'max-w-md' : 'max-w-5xl'}`} aria-label="과제 추가">
+        <div className="mb-5 flex items-start justify-between gap-4"><div><h2 id="task-form-title" className="ui-modal-title">{registrationLevel === 'L2' ? '새 L2 과제 탭' : 'L3 과제 등록'}</h2><p className="mt-1 text-sm text-gray-500">{registrationLevel === 'L2' ? '탭에 표시할 상위과제 이름만 입력하세요.' : `${rootTasks.find((task) => task.id === newParentTaskId)?.name ?? '선택한 L2'} 탭에 하위과제를 등록합니다.`}</p></div><button type="button" onClick={() => setTaskFormOpen(false)} aria-label="닫기" className="ui-button ui-button-ghost ui-button-sm">닫기</button></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <label className="text-sm font-medium text-black">과제명 <span className="text-danger">*</span><input value={newForm.name} onChange={(event) => setNewForm((form) => ({ ...form, name: event.target.value }))} placeholder="예: 신규 랜딩페이지 제작" className={`ui-field mt-1 ${newFormError && !newForm.name.trim() ? 'border-danger' : ''}`} /></label>
+          <label className={`text-sm font-medium text-black ${registrationLevel === 'L2' ? 'sm:col-span-2 xl:col-span-4' : ''}`}>{registrationLevel === 'L2' ? 'L2 과제명' : 'L3 과제명'} <span className="text-danger">*</span><input autoFocus value={newForm.name} onChange={(event) => setNewForm((form) => ({ ...form, name: event.target.value }))} onKeyDown={(event) => { if (registrationLevel === 'L2' && event.key === 'Enter') addTask() }} placeholder={registrationLevel === 'L2' ? '예: SW 제품 신규 디자인 개발' : '예: 신규 랜딩페이지 제작'} className={`ui-field mt-1 ${newFormError && !newForm.name.trim() ? 'border-danger' : ''}`} /></label>
+          {registrationLevel === 'L3' && <>
           <label className="text-sm font-medium text-black">분류<select value={newForm.classification} onChange={event => setNewForm(form => ({ ...form, classification: event.target.value as '과제' | '일반' }))} className="ui-field mt-1"><option>과제</option><option>일반</option></select></label>
           <label className="text-sm font-medium text-black">담당자<input value={newForm.assignees} onChange={event => setNewForm(form => ({ ...form, assignees: event.target.value }))} placeholder="여러 명은 쉼표로 구분" className="ui-field mt-1" /></label>
           <div className="grid grid-cols-2 gap-2"><label className="text-sm font-medium text-black">시작일<input type="date" value={newForm.startDate} onChange={event => setNewForm(form => ({ ...form, startDate: event.target.value }))} className="ui-field mt-1" /></label><label className="text-sm font-medium text-black">종료일<input type="date" value={newForm.endDate} onChange={event => setNewForm(form => ({ ...form, endDate: event.target.value }))} className="ui-field mt-1" /></label></div>
@@ -361,10 +365,11 @@ export default function TaskManagement({ openManagementRequest = 0 }: TaskManage
           {state.criteria.performanceGradeWeight > 0 && <label className="text-sm font-medium text-black">성과등급<select value={newForm.performanceGrade} onChange={(event) => setNewForm((form) => ({ ...form, performanceGrade: event.target.value as PerformanceGrade }))} className="ui-field mt-1">{PERFORMANCE_GRADE_OPTIONS.map((value) => <option key={value}>{value}</option>)}</select></label>}
           <label className="text-sm font-medium text-black">목표<input value={newForm.objective} onChange={(event) => setNewForm((form) => ({ ...form, objective: event.target.value }))} placeholder="예: 전환율 15% 개선 (선택)" className="ui-field mt-1" /></label>
           <label className="text-sm font-medium text-black">성과<input value={newForm.achievement} onChange={(event) => setNewForm((form) => ({ ...form, achievement: event.target.value }))} placeholder="예: 전환율 18% 달성 (선택)" className="ui-field mt-1" /></label>
-          <button type="button" onClick={addTask} className="ui-button ui-button-primary self-end justify-center whitespace-nowrap">+ 과제 등록</button>
+          </>}
         </div>
         {newFormError && <p className="mt-2 text-xs text-danger">{newFormError}</p>}
-      </section>}
+        <div className="ui-modal-actions"><button type="button" onClick={() => setTaskFormOpen(false)} className="ui-button ui-button-ghost">취소</button><button type="button" onClick={addTask} className="ui-button ui-button-primary">{registrationLevel === 'L2' ? 'L2 탭 만들기' : 'L3 과제 등록'}</button></div>
+      </section></div>}
 
       <ConfirmDialog
         open={deletingTask !== null}

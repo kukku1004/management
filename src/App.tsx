@@ -48,6 +48,7 @@ function ProjectApp() {
   const [activeTab, setActiveTab] = useState<TabKey>('tasks')
   const [dataManagementOpen, setDataManagementOpen] = useState(false)
   const [quickStartOpen, setQuickStartOpen] = useState(() => state.tasks.length === 0 && state.members.length === 0)
+  const [taskManagementViewRequest, setTaskManagementViewRequest] = useState(0)
   const [periodName, setPeriodName] = useState(activeProject ? evaluationPeriodFolderName(activeProject.period) : String(new Date().getFullYear()))
 
   function handleTabChange(tab: TabKey) {
@@ -60,7 +61,7 @@ function ProjectApp() {
     <div className="min-h-screen bg-white">
       <Navigation role={role} activeTab={activeTab} onTabChange={handleTabChange} onOpenDataManagement={() => setDataManagementOpen(true)} onOpenQuickStart={() => setQuickStartOpen(true)} />
       <CriteriaWorkspaceProvider><main className="mx-auto w-full max-w-[1920px] px-4 py-8 sm:px-6">
-        {activeTab === 'tasks' && <TaskManagement />}
+        {activeTab === 'tasks' && <TaskManagement openManagementRequest={taskManagementViewRequest} />}
         {activeTab === 'matrix' && <TeamManagement />}
         {activeTab === 'results' && <EvaluationResults />}
         {activeTab === 'notes' && <MeetingNotes />}
@@ -73,6 +74,11 @@ function ProjectApp() {
         onStartEvaluation={() => {
           setQuickStartOpen(false)
           handleTabChange('matrix')
+        }}
+        onOpenTaskManagement={() => {
+          setQuickStartOpen(false)
+          setTaskManagementViewRequest((request) => request + 1)
+          handleTabChange('tasks')
         }}
       />
     </div>

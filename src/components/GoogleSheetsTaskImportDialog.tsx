@@ -18,6 +18,7 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
   const [preview, setPreview] = useState<GoogleSheetTaskPreview | null>(null)
   const [activeLevel1, setActiveLevel1] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [importComplete, setImportComplete] = useState(false)
   const level1s = useMemo(() => preview ? [...new Set(preview.groups.map((group) => group.level1))] : [], [preview])
   const selectedGroups = useMemo(() => preview?.groups.filter((group) => selected.has(group.key)) ?? [], [preview, selected])
 
@@ -29,6 +30,7 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
       setPreview(result)
       setActiveLevel1(result.groups[0]?.level1 ?? '')
       setSelected(new Set())
+      setImportComplete(false)
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : ''
       setError(/not found|404|entity/i.test(message)
@@ -40,6 +42,7 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
   }
 
   function toggle(key: string) {
+    setImportComplete(false)
     setSelected((current) => {
       const next = new Set(current)
       next.has(key) ? next.delete(key) : next.add(key)
@@ -50,6 +53,7 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
   function finish() {
     if (!preview || selected.size === 0) return
     onImport(importSelectedGoogleSheetGroups(preview, selected, tasks))
+    setImportComplete(true)
     if (!embedded) onClose?.()
   }
 
@@ -64,7 +68,8 @@ export default function GoogleSheetsTaskImportDialog({ tasks, onImport, onClose,
       <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-50 px-3 pt-3" role="tablist" aria-label="Google Sheets L1 분야">{level1s.map((level1) => <button key={level1} type="button" role="tab" aria-selected={activeLevel1 === level1} onClick={() => setActiveLevel1(level1)} className={`ui-tab rounded-b-none ${activeLevel1 === level1 ? 'ui-tab-active' : ''}`}>{level1} <span className="ml-1 text-xs opacity-60">{preview.groups.filter((group) => group.level1 === level1).length}</span></button>)}</div>
       <div className={`${embedded ? 'max-h-[360px]' : 'max-h-[520px]'} divide-y divide-gray-100 overflow-y-auto`}>{preview.groups.filter((group) => group.level1 === activeLevel1).map((group) => <label key={group.key} className="flex cursor-pointer items-start gap-3 px-4 py-4 hover:bg-gray-50"><input type="checkbox" className="mt-1" checked={selected.has(group.key)} onChange={() => toggle(group.key)} /><span className="min-w-0 flex-1"><span className="block font-semibold text-gray-950">{group.level2}</span><span className="mt-1 block text-xs text-gray-500">L3 하위과제 {group.children.length}개 · 담당자 {[...new Set(group.children.flatMap((child) => child.assignees ?? []))].join(', ') || '미지정'}</span><span className="mt-2 block border-l-2 border-orange-200 pl-3 text-xs leading-5 text-gray-600">{group.children.slice(0, 4).map((child) => child.name).join(' · ')}{group.children.length > 4 ? ` 외 ${group.children.length - 4}개` : ''}</span></span></label>)}</div>
     </div>}
-    <div className="mt-5 flex flex-wrap items-end justify-between gap-4"><div className="min-w-0 flex-1"><p className="text-sm text-gray-500">선택한 L2 상위과제 {selected.size}개</p>{selectedGroups.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{selectedGroups.map((group) => <span key={group.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 py-1 pl-3 pr-1.5 text-xs font-medium text-orange-900"><span className="truncate">{group.level2}</span><button type="button" onClick={() => toggle(group.key)} aria-label={`${group.level2} 선택 해제`} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-orange-700 hover:bg-orange-100">×</button></span>)}</div>}</div><div className="flex shrink-0 gap-2">{!embedded && <button type="button" onClick={onClose} className="ui-button ui-button-secondary">취소</button>}<button type="button" disabled={!preview || selected.size === 0} onClick={finish} className="ui-button ui-button-primary">선택 과제 가져오기</button></div></div>
+    {importComplete && <div role="status" className="mt-5 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900"><span aria-hidden="true">✓</span><span>선택한 과제를 가져왔습니다.</span></div>}
+    <div className="mt-5 flex flex-wrap items-end justify-between gap-4"><div className="min-w-0 flex-1"><p className="text-sm text-gray-500">선택한 L2 상위과제 {selected.size}개</p>{selectedGroups.length > 0 && <div className="mt-2 flex flex-wrap gap-2">{selectedGroups.map((group) => <span key={group.key} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 py-1 pl-3 pr-1.5 text-xs font-medium text-orange-900"><span className="truncate">{group.level2}</span><button type="button" onClick={() => toggle(group.key)} aria-label={`${group.level2} 선택 해제`} className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-orange-700 hover:bg-orange-100">×</button></span>)}</div>}</div><div className="flex shrink-0 gap-2">{!embedded && <button type="button" onClick={onClose} className="ui-button ui-button-secondary">취소</button>}<button type="button" disabled={!preview || selected.size === 0 || importComplete} onClick={finish} className="ui-button ui-button-primary">{importComplete ? '가져오기 완료' : '선택 과제 가져오기'}</button></div></div>
   </div>
 
   if (embedded) return content

@@ -33,7 +33,11 @@ interface TaskForm {
 
 const EMPTY_TASK_FORM: TaskForm = { name: '', importance: '일반', performanceGrade: 'B', workload: '중', objective: '', achievement: '', classification: '일반', assignees: '', startDate: '', endDate: '' }
 
-export default function TaskManagement() {
+interface TaskManagementProps {
+  openManagementRequest?: number
+}
+
+export default function TaskManagement({ openManagementRequest = 0 }: TaskManagementProps) {
   const { state, dispatch } = useAppState()
   const { profile } = useAuth()
   const { activeProject, activeTeam } = useWorkspace()
@@ -86,6 +90,13 @@ export default function TaskManagement() {
     window.addEventListener('scroll', close, true)
     return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true) }
   }, [])
+
+  useEffect(() => {
+    if (openManagementRequest > 0 && canManage) {
+      setActiveView('manage')
+      setSelectedTaskIds(new Set())
+    }
+  }, [canManage, openManagementRequest])
 
   useEffect(() => {
     if (activeView === 'register' && registrationLevel === 'L3' && effectiveL2Id && effectiveL2Id !== 'ungrouped') {

@@ -40,6 +40,7 @@ interface ProjectSetupStartProps {
   open: boolean
   onClose: () => void
   onStartEvaluation?: () => void
+  onOpenTaskManagement?: () => void
 }
 
 type UploadResultStatus = 'success' | 'warning' | 'error'
@@ -86,7 +87,7 @@ function mergeNames(current: string[], additions: string[]) {
   return [...current, ...additions.filter((name) => !existing.has(normalizedName(name)))]
 }
 
-export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: ProjectSetupStartProps) {
+export default function ProjectSetupStart({ open, onClose, onStartEvaluation, onOpenTaskManagement }: ProjectSetupStartProps) {
   const { state, dispatch } = useAppState()
   const { workspace, activeProject, activeTeam, saveGrowthProfile } = useWorkspace()
   const [mode, setMode] = useState<StartMode>('sheets')
@@ -721,7 +722,7 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
           </section>}
         </div>
 
-        {message && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className={`flex min-w-0 items-center gap-2 text-sm ${mode === 'excel' && !excelImportComplete ? 'text-danger' : 'text-success'}`}>{(previousImportComplete || excelImportComplete) && <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 fill-current"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.86-9.78a.75.75 0 0 0-1.22-.88l-3.24 4.48-1.98-1.98a.75.75 0 0 0-1.06 1.06l2.6 2.6a.75.75 0 0 0 1.14-.1l3.76-5.18Z" clipRule="evenodd" /></svg>}<span>{message}</span></p>{mode === 'excel' && excelUploadResults.length > 0 && !uploadResultsOpen && <button type="button" className="ui-button ui-button-secondary ui-button-sm shrink-0" onClick={() => setUploadResultsOpen(true)}>업로드 결과 {excelUploadResults.length}개 보기</button>}</div>}
+        {message && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className={`flex min-w-0 items-center gap-2 text-sm ${mode === 'excel' && !excelImportComplete ? 'text-danger' : 'text-success'}`}>{(previousImportComplete || excelImportComplete || sheetsImportComplete) && <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 fill-current"><path fillRule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.86-9.78a.75.75 0 0 0-1.22-.88l-3.24 4.48-1.98-1.98a.75.75 0 0 0-1.06 1.06l2.6 2.6a.75.75 0 0 0 1.14-.1l3.76-5.18Z" clipRule="evenodd" /></svg>}<span>{message}</span></p>{mode === 'excel' && excelUploadResults.length > 0 && !uploadResultsOpen && <button type="button" className="ui-button ui-button-secondary ui-button-sm shrink-0" onClick={() => setUploadResultsOpen(true)}>업로드 결과 {excelUploadResults.length}개 보기</button>}</div>}
         {mode === 'excel' && excelUploadResults.length > 0 && !isImportingExcel && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4">
           <p className="text-sm text-gray-500">{excelImportComplete ? '가져온 데이터로 평가를 계속할 수 있습니다.' : '파일 내용을 확인한 뒤 다시 업로드해 주세요.'}</p>
           <button
@@ -731,7 +732,7 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
             className="ui-button ui-button-primary shrink-0"
           >평가 시작하기</button>
         </div>}
-        {mode === 'sheets' && sheetsImportComplete && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className="text-sm text-gray-500">가져온 과제와 담당자로 평가를 계속할 수 있습니다.</p><button type="button" onClick={() => { if (onStartEvaluation) onStartEvaluation(); else onClose() }} className="ui-button ui-button-primary shrink-0">평가 시작하기</button></div>}
+        {mode === 'sheets' && sheetsImportComplete && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className="text-sm text-gray-500">가져온 L2·L3 과제를 과제관리 화면에서 확인할 수 있습니다.</p><button type="button" onClick={() => { if (onOpenTaskManagement) onOpenTaskManagement(); else onClose() }} className="ui-button ui-button-primary shrink-0">과제관리에서 확인</button></div>}
         {mode === 'previous' && sourceProject && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={copyCriteria} onChange={(event) => { setCopyCriteria(event.target.checked); setPreviousImportComplete(false) }} /> 평가기준도 가져오기</label><button type="button" onClick={previousImportComplete ? onClose : copyPreviousProject} disabled={!previousImportComplete && selectedTaskIds.length === 0 && selectedMemberIds.length === 0 && !copyCriteria} className={`ui-button ui-button-primary shrink-0 ${previousImportComplete ? 'quick-start-complete' : ''}`}>{previousImportComplete ? '시작하기' : '선택 항목 가져오기'}</button></div>}
       </div>
     </div>

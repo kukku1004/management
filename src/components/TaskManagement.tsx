@@ -60,15 +60,15 @@ export default function TaskManagement() {
   const [exportingSheet, setExportingSheet] = useState(false)
   const [exportMessage, setExportMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const taskFormSectionRef = useRef<HTMLElement>(null)
   const currentTasks = state.tasks.filter((task) => !task.excludedFromCurrentEvaluation)
   const hasTasks = currentTasks.length > 0
   const sourceGroups = Array.from(new Set(currentTasks.map((task) => task.sourceGroup).filter((value): value is string => Boolean(value))))
   const rootTasks = currentTasks.filter((task) => !task.parentTaskId)
-  const registrationTasks = currentTasks.filter((task) => !task.isTaskGroup)
   const managementTasks = rootTasks.flatMap((task) => task.isTaskGroup
     ? [task, ...currentTasks.filter((child) => child.parentTaskId === task.id)]
     : [task])
-  const viewTasks = activeView === 'register' ? registrationTasks : managementTasks
+  const viewTasks = managementTasks
   const visibleTasks = activeSourceGroup === '전체' ? viewTasks : viewTasks.filter((task) => task.sourceGroup === activeSourceGroup)
   const selectableVisibleTasks = visibleTasks.filter((task) => !task.isTaskGroup)
 
@@ -170,6 +170,12 @@ export default function TaskManagement() {
 
   function normalizeName(value: string) { return value.trim().normalize('NFC') }
 
+  function openTaskForm(level: 'L2' | 'L3', parentTaskId = '') {
+    setRegistrationLevel(level)
+    setNewParentTaskId(parentTaskId)
+    window.requestAnimationFrame(() => taskFormSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }))
+  }
+
   async function exportGoogleSheet() {
     if (!activeProject) return
     setExportingSheet(true); setExportMessage('')
@@ -213,12 +219,7 @@ export default function TaskManagement() {
 
       {hasTasks ? (
       <div>
-      {sourceGroups.length > 0 && <div className="mb-3 flex flex-wrap gap-1 border-b border-gray-200" role="tablist" aria-label="A열 기준 과제 그룹">
-        {['전체', ...sourceGroups].map((group) => {
-          const count = group === '전체' ? viewTasks.length : viewTasks.filter((task) => task.sourceGroup === group).length
-          return <button key={group} type="button" role="tab" aria-selected={activeSourceGroup === group} onClick={() => { setActiveSourceGroup(group); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeSourceGroup === group ? 'ui-tab-active' : ''}`}>{group} <span className="ml-1 text-xs text-gray-400">{count}</span></button>
-        })}
-      </div>}
+      {sourceGroups.length > 0 && <div className="mb-3 flex items-center justify-between gap-3"><label className="flex items-center gap-2 text-sm font-medium text-gray-700">분야<select value={activeSourceGroup} onChange={(event) => { setActiveSourceGroup(event.target.value); setSelectedTaskIds(new Set()) }} className="ui-field ui-field-sm w-56"><option value="전체">전체</option>{sourceGroups.map((group) => <option key={group} value={group}>{group}</option>)}</select></label>{activeView === 'register' && canManage && <button type="button" onClick={() => openTaskForm('L2')} className="ui-button ui-button-primary ui-button-sm">+ 상위과제 추가</button>}</div>}
       {activeView === 'manage' && selectedTaskIds.size > 0 && <div className="mb-3 flex items-center justify-between rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"><div><p className="text-sm font-medium text-orange-900">개별과제 {selectedTaskIds.size}개 선택됨</p><p className="mt-1 text-xs text-orange-700">선택한 과제를 팀장이 평가할 하나의 상위과제로 묶습니다.</p></div><button type="button" onClick={() => { setGroupingOpen(true); setGroupError('') }} disabled={selectedTaskIds.size < 2} className="ui-button ui-button-primary ui-button-sm">상위과제로 그룹핑</button></div>}
       <div className="ui-table-wrap">
         <table className="ui-table min-w-[1180px]">
@@ -242,7 +243,7 @@ export default function TaskManagement() {
               <tr key={task.id} className="border-t border-gray-300 bg-gray-50 text-black">
                 {activeView === 'manage' && <td className="px-3 py-3" />}
                 <td colSpan={7 + Number(state.criteria.taskGradeWeight > 0) + Number(state.criteria.performanceGradeWeight > 0) + Number(state.criteria.workloadWeight > 0)} className="px-4 py-3">
-                  <div className="flex items-center justify-between gap-4"><div><span className="text-xs font-semibold text-accent">L2 상위과제</span><strong className="ml-3 text-sm text-gray-950">{task.name}</strong><span className="ml-2 text-xs text-gray-500">하위과제 {currentTasks.filter((child) => child.parentTaskId === task.id).length}개</span></div><div className="flex gap-2"><button type="button" onClick={() => startEdit(task)} className="ui-button ui-button-secondary ui-button-sm">상위과제명 수정</button><button type="button" onClick={() => setDeletingTask(task)} className="ui-button ui-button-danger ui-button-sm">그룹 해제</button></div></div>
+                  <div className="flex items-center justify-between gap-4"><div><strong className="text-sm text-gray-950">{task.name}</strong><span className="ml-2 text-xs text-gray-500">개별과제 {currentTasks.filter((child) => child.parentTaskId === task.id).length}개</span></div><div className="flex gap-2">{activeView === 'register' && <button type="button" onClick={() => openTaskForm('L3', task.id)} className="ui-button ui-button-primary ui-button-sm">+ 이 상위과제에 과제 추가</button>}{activeView === 'manage' && canManage && <button type="button" onClick={() => setDeletingTask(task)} className="ui-button ui-button-danger ui-button-sm">그룹 해제</button>}</div></div>
                 </td>
               </tr>
             ) : editingTaskId === task.id ? (
@@ -303,7 +304,7 @@ export default function TaskManagement() {
       </div>
       ) : null}
 
-      {activeView === 'register' && <section className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
+      {activeView === 'register' && <section ref={taskFormSectionRef} className="rounded-lg border border-gray-200 bg-white p-4" aria-label="과제 추가">
         <div className="mb-4 flex flex-wrap items-end gap-3 border-b border-gray-100 pb-4">{canManage && <label className="text-sm font-medium text-black">등록 레벨<select value={registrationLevel} onChange={(event) => { setRegistrationLevel(event.target.value as 'L2' | 'L3'); setNewParentTaskId('') }} className="ui-field mt-1 w-48"><option value="L2">L2 상위과제</option><option value="L3">L3 하위과제</option></select></label>}{registrationLevel === 'L3' && <label className="min-w-72 flex-1 text-sm font-medium text-black">소속 L2 상위과제<select value={newParentTaskId} onChange={(event) => setNewParentTaskId(event.target.value)} className="ui-field mt-1"><option value="">{rootTasks.some((task) => task.isTaskGroup) ? '상위과제 선택' : '등록된 상위과제 없음'}</option>{rootTasks.filter((task) => task.isTaskGroup).map((task) => <option key={task.id} value={task.id}>{task.sourceLevel1 ? `${task.sourceLevel1} / ` : ''}{task.name}</option>)}</select></label>}</div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="text-sm font-medium text-black">과제명 <span className="text-danger">*</span><input value={newForm.name} onChange={(event) => setNewForm((form) => ({ ...form, name: event.target.value }))} placeholder="예: 신규 랜딩페이지 제작" className={`ui-field mt-1 ${newFormError && !newForm.name.trim() ? 'border-danger' : ''}`} /></label>

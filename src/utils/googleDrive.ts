@@ -114,6 +114,16 @@ export interface DriveSaveResult {
   sheetFile: DriveFile
 }
 
+export async function saveRegisteredTasksAsGoogleSheet(content: Blob, periodName: string, teamName?: string) {
+  const folder = await getEvaluationDriveFolder(periodName, teamName)
+  return uploadFile({
+    name: `${sanitizePeriodName(periodName)}_등록과제`,
+    mimeType: SHEET_MIME,
+    parents: [folder.id],
+    appProperties: { appId: APP_ID, kind: 'registered-tasks-sheet', periodName },
+  }, content)
+}
+
 export async function getEvaluationDriveFolder(periodName: string, teamName?: string): Promise<DriveFile> {
   const safePeriodName = sanitizePeriodName(periodName)
   if (!safePeriodName) throw new Error('평가기간명을 입력하세요.')

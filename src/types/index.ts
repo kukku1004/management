@@ -131,6 +131,7 @@ export interface PeerReview {
   contributionPercent: number | null
   grade: PerformanceGrade | null
   evidence: string
+  rank?: number | null
 }
 
 export interface Criteria {

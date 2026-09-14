@@ -13,6 +13,10 @@ import CriteriaWorkspaceLayout from './CriteriaWorkspaceLayout'
 import GoogleSheetsTaskImportDialog from './GoogleSheetsTaskImportDialog'
 import type { GoogleSheetTaskImport } from '../utils/googleSheetsTasks'
 import { useAuth } from '../state/AuthContext'
+import { useWorkspace } from '../state/WorkspaceContext'
+import { evaluationPeriodFolderName } from '../utils/workspace'
+import { downloadRegisteredTasks, registeredTasksWorkbookBlob } from '../utils/taskExport'
+import { saveRegisteredTasksAsGoogleSheet } from '../utils/googleDrive'
 
 interface TaskForm {
   name: string
@@ -32,6 +36,7 @@ const EMPTY_TASK_FORM: TaskForm = { name: '', importance: '일반', performanceG
 export default function TaskManagement() {
   const { state, dispatch } = useAppState()
   const { profile } = useAuth()
+  const { activeProject, activeTeam } = useWorkspace()
   const canManage = profile?.role === 'admin' || profile?.role === 'leader'
   const [activeView, setActiveView] = useState<'register' | 'manage'>('register')
   const [newForm, setNewForm] = useState<TaskForm>(EMPTY_TASK_FORM)
@@ -52,6 +57,8 @@ export default function TaskManagement() {
   const [activeSourceGroup, setActiveSourceGroup] = useState('전체')
   const [registrationLevel, setRegistrationLevel] = useState<'L2' | 'L3'>('L3')
   const [newParentTaskId, setNewParentTaskId] = useState('')
+  const [exportingSheet, setExportingSheet] = useState(false)
+  const [exportMessage, setExportMessage] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const currentTasks = state.tasks.filter((task) => !task.excludedFromCurrentEvaluation)
   const hasTasks = currentTasks.length > 0
@@ -159,12 +166,23 @@ export default function TaskManagement() {
 
   function normalizeName(value: string) { return value.trim().normalize('NFC') }
 
+  async function exportGoogleSheet() {
+    if (!activeProject) return
+    setExportingSheet(true); setExportMessage('')
+    try {
+      const periodName = evaluationPeriodFolderName(activeProject.period)
+      const file = await saveRegisteredTasksAsGoogleSheet(registeredTasksWorkbookBlob(currentTasks), periodName, activeTeam?.name)
+      setExportMessage(file.webViewLink ? `Google Sheets 저장 완료|${file.webViewLink}` : 'Google Sheets 저장 완료')
+    } catch (error) { setExportMessage(error instanceof Error ? error.message : 'Google Sheets 저장에 실패했습니다.') }
+    finally { setExportingSheet(false) }
+  }
+
   return (
     <CriteriaWorkspaceLayout>
     <div className="ui-page">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1.5"><h3 className="text-lg font-semibold text-black">과제</h3><TitleHelp label="과제를 추가하거나 삭제하면 평가 매트릭스와 리포트에 즉시 반영됩니다." /></div>
-        {activeView === 'register' && <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-secondary">Google Sheets 가져오기</button><button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>}
+        {activeView === 'register' && <div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-secondary">Google Sheets 가져오기</button>{hasTasks && <button type="button" onClick={() => downloadRegisteredTasks(currentTasks)} className="ui-button ui-button-secondary">등록과제 Excel 내보내기</button>}{hasTasks && <button type="button" disabled={exportingSheet} onClick={() => void exportGoogleSheet()} className="ui-button ui-button-secondary">{exportingSheet ? '저장 중…' : '등록과제 Google Sheets 내보내기'}</button>}<button onClick={downloadTaskTemplate} className="ui-button ui-button-secondary">엑셀 양식 다운로드</button>{hasTasks && <button type="button" aria-expanded={uploadOpen} onClick={() => setUploadOpen((open) => !open)} className="ui-button ui-button-secondary">엑셀로 업로드</button>}<input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileSelected} /></div>}
       </div>
       <div className="mt-5 flex border-b border-gray-200" role="tablist" aria-label="업적평가 과제 메뉴"><button type="button" role="tab" aria-selected={activeView === 'register'} onClick={() => { setActiveView('register'); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeView === 'register' ? 'ui-tab-active' : ''}`}>과제등록</button>{canManage && <button type="button" role="tab" aria-selected={activeView === 'manage'} onClick={() => { setActiveView('manage'); setSelectedTaskIds(new Set()) }} className={`ui-tab rounded-b-none ${activeView === 'manage' ? 'ui-tab-active' : ''}`}>과제관리</button>}</div>
       {activeView === 'register' && (!hasTasks || uploadOpen) && <FileDropZone
@@ -187,6 +205,7 @@ export default function TaskManagement() {
         />
       )}
       {sheetsFeedback && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">L2 상위과제 {sheetsFeedback.selectedGroupCount}개와 포함된 L3만 현재 평가에 표시합니다. {sheetsFeedback.addedCount}건 추가, {sheetsFeedback.updatedCount}건 갱신, 미선택 기존 과제 {sheetsFeedback.hiddenCount}건은 데이터 보존 상태로 숨겼습니다.</div>}
+      {exportMessage && <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700">{exportMessage.includes('|') ? <><span>{exportMessage.split('|')[0]}</span><a href={exportMessage.split('|')[1]} target="_blank" rel="noreferrer" className="ml-3 font-medium text-accent underline">새 시트 열기</a></> : exportMessage}</div>}
 
       {hasTasks ? (
       <div>

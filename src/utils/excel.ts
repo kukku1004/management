@@ -1195,6 +1195,74 @@ export async function downloadMemberPeerReviewTemplates(input: MemberPeerReviewT
   return generated
 }
 
+export function downloadRankPeerReviewTemplates(members: TeamMember[], periodLabel: string) {
+  const activeMembers = members.filter((member) => member.active)
+  const files = activeMembers.map((reviewer) => {
+    const targets = activeMembers.filter((member) => member.id !== reviewer.id)
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['팀원 피어리뷰'],
+      ['평가기간', periodLabel],
+      ['평가자', reviewer.name],
+      [],
+      ['대상팀원', '순위', '순위 근거'],
+      ...targets.map((target) => [target.name, '', '']),
+    ])
+    ws['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 64 }]
+    ws['!rows'] = [{ hpt: 28 }, { hpt: 22 }, { hpt: 22 }, { hpt: 8 }, { hpt: 24 }, ...targets.map(() => ({ hpt: 36 }))]
+    ws['!autofilter'] = { ref: `A5:C${targets.length + 5}` }
+    ws['!dataValidation'] = [{ type: 'whole', operator: 'between', sqref: `B6:B${targets.length + 5}`, formula1: '1', formula2: String(targets.length) }]
+    const range = XLSX.utils.decode_range(ws['!ref'] ?? 'A1:C5')
+    for (let row = range.s.r; row <= range.e.r; row += 1) {
+      for (let col = range.s.c; col <= range.e.c; col += 1) {
+        const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })]
+        if (!cell) continue
+        cell.s = { font: { name: 'Arial', sz: row === 0 ? 14 : 10, bold: row === 0 || row === 4, color: row === 4 ? { rgb: 'FFFFFF' } : { rgb: '111827' } }, fill: row === 4 ? { fgColor: { rgb: '374151' } } : row >= 5 && col >= 1 ? { fgColor: { rgb: 'FFF7ED' } } : undefined, alignment: { vertical: 'center', horizontal: col === 1 ? 'center' : 'left', wrapText: col === 2 }, border: row >= 4 ? { bottom: { style: 'thin', color: { rgb: 'E5E7EB' } } } : undefined }
+      }
+    }
+    XLSX.utils.book_append_sheet(wb, ws, '피어리뷰')
+    const meta = XLSX.utils.aoa_to_sheet([['평가자ID', reviewer.id], ['평가자', reviewer.name], ['양식버전', 6]])
+    XLSX.utils.book_append_sheet(wb, meta, '_메타')
+    wb.Workbook = { Sheets: [{ name: '피어리뷰', Hidden: 0 }, { name: '_메타', Hidden: 1 }] }
+    return { name: `${periodLabel.replace(/[^0-9A-Za-z가-힣_-]+/g, '_')}_피어리뷰_${reviewer.name}.xlsx`, data: new Uint8Array(XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true })) }
+  })
+  if (files.length > 0) downloadBlob(zipStoredFiles(files), `${periodLabel.replace(/[^0-9A-Za-z가-힣_-]+/g, '_')}_피어리뷰_팀원별.zip`)
+  return files.length
+}
+
+export function parseRankPeerReviewWorkbook(buffer: ArrayBuffer, members: TeamMember[], existingPeerReviews: PeerReview[]) {
+  const wb = XLSX.read(buffer, { type: 'array' })
+  const metaSheet = wb.Sheets['_메타']
+  const reviewSheet = wb.Sheets['피어리뷰']
+  if (!metaSheet || !reviewSheet) return { reviewerId: '', reviews: [] as PeerReview[], errors: ['피어리뷰 전용 양식이 아닙니다.'] }
+  const metaRows = XLSX.utils.sheet_to_json<(string | number)[]>(metaSheet, { header: 1, defval: '' })
+  const reviewerId = String(metaRows.find((row) => row[0] === '평가자ID')?.[1] ?? '')
+  const reviewer = members.find((member) => member.id === reviewerId)
+  if (!reviewer) return { reviewerId, reviews: [] as PeerReview[], errors: ['평가자를 현재 팀원 목록에서 찾을 수 없습니다.'] }
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(reviewSheet, { range: 4, defval: '' })
+  const targets = members.filter((member) => member.active && member.id !== reviewerId)
+  const targetByName = new Map(targets.map((member) => [member.name.trim(), member]))
+  const errors: string[] = []
+  const reviews: PeerReview[] = []
+  const ranks: number[] = []
+  rows.forEach((row, index) => {
+    const targetName = String(row['대상팀원'] ?? '').trim()
+    if (!targetName) return
+    const target = targetByName.get(targetName)
+    const rank = Number(row['순위'])
+    const evidence = String(row['순위 근거'] ?? '').trim()
+    if (!target) { errors.push(`${index + 6}행: 대상팀원 '${targetName}'을 찾을 수 없습니다.`); return }
+    if (!Number.isInteger(rank) || rank < 1 || rank > targets.length) { errors.push(`${index + 6}행: 순위는 1~${targets.length} 사이의 정수여야 합니다.`); return }
+    if (!evidence) { errors.push(`${index + 6}행: 순위 근거를 입력하세요.`); return }
+    const existing = existingPeerReviews.find((review) => review.reviewerMemberId === reviewerId && review.targetMemberId === target.id)
+    ranks.push(rank)
+    reviews.push({ id: existing?.id ?? uuidv4(), taskId: '', reviewerMemberId: reviewerId, reviewerName: reviewer.name, targetMemberId: target.id, contributionPercent: null, grade: null, rank, evidence })
+  })
+  if (reviews.length !== targets.length) errors.push(`평가 대상 ${targets.length}명을 모두 작성해야 합니다.`)
+  if (new Set(ranks).size !== ranks.length) errors.push('순위는 중복해서 사용할 수 없습니다.')
+  return { reviewerId, reviews: errors.length ? [] : reviews, errors }
+}
+
 export interface ProjectPeerReviewImportResult {
   reviews: PeerReview[]
   reviewerMemberId: string | null

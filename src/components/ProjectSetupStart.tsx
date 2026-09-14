@@ -105,7 +105,6 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
   const [excelUploadResults, setExcelUploadResults] = useState<ExcelUploadResult[]>([])
   const [uploadResultsOpen, setUploadResultsOpen] = useState(false)
   const [pendingPdfComments, setPendingPdfComments] = useState<PendingPdfComments[]>([])
-  const [sheetsImportOpen, setSheetsImportOpen] = useState(false)
   const [sheetsImportComplete, setSheetsImportComplete] = useState(false)
   const nameInputRef = useRef<HTMLInputElement>(null)
   const excelInputRef = useRef<HTMLInputElement>(null)
@@ -581,10 +580,7 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1 pt-5">
-          {mode === 'sheets' && <section className="rounded-lg border border-gray-200 bg-white p-6">
-            <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="ui-section-title">Google Sheets에서 과제 가져오기</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">`2026 추진현황`의 L1을 탭으로 나누고, 팀장이 선택한 L2 상위과제와 포함된 L3 하위과제만 가져옵니다. 과제 담당자는 팀원 목록에 자동 연결됩니다.</p></div><button type="button" onClick={() => setSheetsImportOpen(true)} className="ui-button ui-button-primary">Google Sheets 연결 및 과제 선택</button></div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L1</p><p className="mt-1 text-sm font-medium text-gray-900">업무 영역 탭</p></div><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L2</p><p className="mt-1 text-sm font-medium text-gray-900">선택할 상위과제</p></div><div className="rounded-lg bg-gray-50 p-4"><p className="text-xs font-semibold text-gray-500">L3</p><p className="mt-1 text-sm font-medium text-gray-900">포함되는 하위과제</p></div></div>
-          </section>}
+          {mode === 'sheets' && <section className="rounded-lg border border-gray-200 bg-white p-5"><GoogleSheetsTaskImportDialog embedded tasks={state.tasks} onImport={handleSheetsImport} /></section>}
           {mode === 'direct' && <div>
             <div className="grid gap-3 sm:grid-cols-2">
               {renderDraftPanel('tasks', '과제', taskDrafts)}
@@ -738,7 +734,6 @@ export default function ProjectSetupStart({ open, onClose, onStartEvaluation }: 
         {mode === 'sheets' && sheetsImportComplete && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><p className="text-sm text-gray-500">가져온 과제와 담당자로 평가를 계속할 수 있습니다.</p><button type="button" onClick={() => { if (onStartEvaluation) onStartEvaluation(); else onClose() }} className="ui-button ui-button-primary shrink-0">평가 시작하기</button></div>}
         {mode === 'previous' && sourceProject && <div className="mt-4 flex shrink-0 items-center justify-between gap-4 border-t border-gray-200 pt-4"><label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={copyCriteria} onChange={(event) => { setCopyCriteria(event.target.checked); setPreviousImportComplete(false) }} /> 평가기준도 가져오기</label><button type="button" onClick={previousImportComplete ? onClose : copyPreviousProject} disabled={!previousImportComplete && selectedTaskIds.length === 0 && selectedMemberIds.length === 0 && !copyCriteria} className={`ui-button ui-button-primary shrink-0 ${previousImportComplete ? 'quick-start-complete' : ''}`}>{previousImportComplete ? '시작하기' : '선택 항목 가져오기'}</button></div>}
       </div>
-      {sheetsImportOpen && <GoogleSheetsTaskImportDialog tasks={state.tasks} onImport={handleSheetsImport} onClose={() => setSheetsImportOpen(false)} />}
     </div>
   )
 }

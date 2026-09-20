@@ -473,6 +473,34 @@ body {
     @apply bg-gray-50/60;
   }
 
+  .management-task-sheet .ui-table th,
+  .management-task-sheet .ui-table td {
+    padding: 8px 6px;
+  }
+
+  .management-task-sheet .ui-table th {
+    white-space: nowrap;
+    letter-spacing: normal;
+  }
+
+  .management-task-sheet .ui-field {
+    min-width: 0;
+    padding-left: 6px;
+    padding-right: 6px;
+    font-size: 12px;
+  }
+
+  .management-task-sheet select.ui-field {
+    padding-right: 20px;
+  }
+
+  .management-task-sheet .ui-button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
   .ui-empty {
     @apply rounded-lg border border-dashed border-gray-300 bg-gray-50/60 px-6 py-10 text-center text-sm leading-6 text-gray-500;
   }

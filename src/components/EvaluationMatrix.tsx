@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { useAppState } from '../state/AppContext'
 import type { PerformanceGrade } from '../types'
 import { PERFORMANCE_GRADE_OPTIONS } from '../types'
@@ -23,12 +23,13 @@ const TASK_MAX_WIDTH = 520
 const CONTRIBUTION_WIDTH = 76
 const MEMBER_MIN_WIDTH = 260
 
-export default function EvaluationMatrix() {
+export default function EvaluationMatrix({ embedded = false }: { embedded?: boolean }) {
+  const Layout = embedded ? Fragment : CriteriaWorkspaceLayout
   const { state, dispatch } = useAppState()
   const { members, contributions, criteria } = state
   const tasks = state.tasks.filter((task) => !task.isTaskGroup && !task.excludedFromCurrentEvaluation)
   const [detail, setDetail] = useState<{ taskId: string; memberId: string } | null>(null)
-  const [rankingOpen, setRankingOpen] = useState(true)
+  const [rankingOpen, setRankingOpen] = useState(!embedded)
   const [taskWidth, setTaskWidth] = useState(260)
   const taskResizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
   const contributionEnabled = criteria.contributionWeight > 0
@@ -70,11 +71,13 @@ export default function EvaluationMatrix() {
   }
 
   return (
-    <CriteriaWorkspaceLayout>
+    <Layout>
     <div className="space-y-3">
       <header className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-1.5"><h2 className="ui-page-title">평가하기</h2><TitleHelp label="과제별 기여도와 개인수행등급을 입력합니다. 참여하지 않은 칸은 비워두고, 과제별 기여도 합계는 100%로 맞춰주세요." /></div>{!rankingOpen && <button type="button" onClick={() => setRankingOpen(true)} className="ui-button ui-button-secondary">실시간 순위 보기</button>}</header>
 
       <LiveRankingPanel results={results} open={rankingOpen} onClose={() => setRankingOpen(false)} />
+      <p className="text-sm text-gray-600">현재 평가에 포함된 과제 전체를 표시합니다. 과제별 담당자 칸에 기여도(%)를 입력하고 합계를 100%로 맞춰주세요. 입력값은 자동 저장됩니다.</p>
+      {!contributionEnabled && <p className="text-sm text-orange-700">기여도가 미사용 상태입니다. 왼쪽 평가기준에서 기여도를 켜면 입력할 수 있습니다. 개인수행등급 사용 여부와는 별개입니다.</p>}
 
       {tasks.length === 0 || members.length === 0 ? (
         <p className="ui-empty">
@@ -93,7 +96,7 @@ export default function EvaluationMatrix() {
                 <colgroup>{members.map((member) => <col key={member.id} style={{ width: `${100 / members.length}%` }} />)}</colgroup>
                 <thead><tr className="h-14">{members.map((member) => { const result = resultByMember.get(member.id); const rank = result ? results.filter((item) => item.performanceScore > result.performanceScore).length + 1 : '-'; return <th key={member.id} className="border-l border-gray-200 px-4 py-2 text-center align-middle"><div className="font-semibold normal-case tracking-normal text-gray-950">{member.name}</div><div className="mt-0.5 whitespace-nowrap text-[11px] font-medium normal-case tracking-normal text-gray-500">{rank}위 · {result?.performanceScore.toFixed(1) ?? '0.0'}점 · {result?.grade ?? '-'}</div></th> })}</tr></thead>
                 <tbody>{tasks.map((task) => <tr key={task.id} className="h-16">{members.map((member) => {
-                        const isAssigned = !task.assignees?.length || task.assignees.some((name) => name.trim() === member.name.trim())
+                        const isAssigned = task.assignees?.some((name) => name.trim() === member.name.trim())
                         const percent = getContributionPercent(contributions, task.id, member.id)
                         const grade = getPersonalPerformanceGrade(contributions, task.id, member.id)
                         const contribution = getContribution(contributions, task.id, member.id)
@@ -123,6 +126,6 @@ export default function EvaluationMatrix() {
       )}
       {detail && (() => { const task = tasks.find((item) => item.id === detail.taskId); const member = members.find((item) => item.id === detail.memberId); const summary = summarizePeerReviews(state.peerReviews, detail.taskId, detail.memberId); return <PeerReviewDetailDrawer task={task} member={member} currentContribution={getContributionPercent(contributions, detail.taskId, detail.memberId)} currentGrade={getPersonalPerformanceGrade(contributions, detail.taskId, detail.memberId)} summary={summary} onApplyContribution={() => summary.peerContribution !== null && handlePercentChange(detail.taskId, detail.memberId, String(summary.peerContribution))} onApplyGrade={() => summary.recommendedGrade && handleGradeChange(detail.taskId, detail.memberId, summary.recommendedGrade)} onClose={() => setDetail(null)} /> })()}
     </div>
-    </CriteriaWorkspaceLayout>
+    </Layout>
   )
 }

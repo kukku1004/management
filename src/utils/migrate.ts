@@ -28,6 +28,11 @@ function migrateTask(raw: Record<string, unknown>): Task | null {
     dateNeedsReview: raw.dateNeedsReview === true,
     submittedByMember: raw.submittedByMember === true,
     sourceGroup: typeof raw.sourceGroup === 'string' ? raw.sourceGroup : undefined,
+    sourceLevel1: typeof raw.sourceLevel1 === 'string' ? raw.sourceLevel1 : undefined,
+    sourceLevel2: typeof raw.sourceLevel2 === 'string' ? raw.sourceLevel2 : undefined,
+    parentTaskId: typeof raw.parentTaskId === 'string' ? raw.parentTaskId : undefined,
+    isTaskGroup: raw.isTaskGroup === true,
+    excludedFromCurrentEvaluation: raw.excludedFromCurrentEvaluation === true,
   }
 }
 
